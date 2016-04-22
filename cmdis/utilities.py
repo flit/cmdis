@@ -27,18 +27,17 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from . import instructions
-from .decoder import DECODER_TREE
+## @brief Compute the hamming weight, or number of 1s, of the argument.
+def hamming_weight(v):
+    weight = 0
+    while v != 0:
+        weight += v & 1
+        v >>= 1
+    return weight
 
-decoder = DECODER_TREE
-decoder.build()
-
-class Disassembler(object):
-    def __init__(self):
-        pass
-
-    def disasm(self, data):
-        pass
-
-
+## @brief Convert two bytes to an unsigned halfword.
+#
+# @param data Iterable of ints where each is 0 <= x < 256.
+def bytes_to_le16(data, offset=0):
+    return data[offset] | (data[offset+1] << 8)
 

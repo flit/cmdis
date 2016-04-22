@@ -27,18 +27,30 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from . import instructions
-from .decoder import DECODER_TREE
+from .model import CpuModelDelegate
+from .registers import CORE_REGISTER
 
-decoder = DECODER_TREE
-decoder.build()
-
-class Disassembler(object):
+class MockCpuModelDelegate(CpuModelDelegate):
     def __init__(self):
-        pass
+        self._regs = {}
+        for reg in CORE_REGISTER.values():
+            self._regs[reg] = 0
 
-    def disasm(self, data):
-        pass
+    def read_register(self, reg):
+        return self._regs[reg]
 
+    def write_register(self, reg, value):
+        self._regs[reg] = value
+
+    def read_memory(self, addr, size=32):
+        if size == 8:
+            return 0x12
+        elif size == 16:
+            return 0x1234
+        elif size == 32:
+            return 0x12345678
+
+    def write_memory(self, addr, value, size=32):
+        pass
 
 

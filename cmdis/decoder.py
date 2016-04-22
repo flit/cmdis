@@ -27,26 +27,31 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .model import Instruction
+from .bitstring import bitstring
+from .utilities import (bytes_to_le16, hamming_weight)
 import string
 from collections import (defaultdict, namedtuple)
 
-# DECODERS = []
+class Instruction(object):
+    def __init__(self, mnemonic, hw1, hw2=None, attrs=None, handler=None):
+        self._mnemonic = mnemonic
+        self._hw1 = hw1
+        self._hw2 = hw2
+        self._attrs = attrs
+        self._handler = handler
+
+    @property
+    def size(self):
+        return 2 + (2 if self._hw2 is not None else 0)
+
+    def execute(self, cpu):
+        return self._handler(cpu, **self._attrs)
+
+    def __repr__(self):
+        i2 = " %04x" % self._hw2 if self._hw2 is not None else ''
+        return "<Instruction@0x%x %s %04x%s %s>" % (id(self), self._mnemonic, self._hw1, i2, self._attrs)
 
 DecoderTreeNode = namedtuple('DecoderTreeNode', 'mask children')
-
-_32bitMask = 0xf800
-_32bitPrefixes = [0xf800, 0xf000, 0xe800]
-
-def hamming_weight(v):
-    weight = 0
-    while v != 0:
-        weight += v & 1
-        v >>= 1
-    return weight
-
-def bytes_to_le16(data, offset=0):
-    return data[offset] | (data[offset+1] << 8)
 
 class UndefinedInstructionError(Exception):
     pass
@@ -57,6 +62,10 @@ class UndefinedInstructionError(Exception):
 # Tree-based instruction decoding algorithm borrowed from Amoco project by Axel Tillequin
 # (bdcht3@gmail.com) and re-written.
 class DecoderTree(object):
+
+    _32bitMask = 0xf800
+    _32bitPrefixes = [0xf800, 0xf000, 0xe800]
+
     def __init__(self):
         self._decoders16 = []
         self._decoders32 = []
@@ -76,9 +85,11 @@ class DecoderTree(object):
     def decode(self, data):
         assert len(data) >= 2
         hw1 = bytes_to_le16(data)
-        is32bit = hw1 & _32bitMask in _32bitPrefixes
-        hw2 = bytes_to_le16(data, 2) if is32bit else None
+        is32bit = hw1 & self._32bitMask in self._32bitPrefixes
         if is32bit:
+            if len(data) < 4:
+                raise UndefinedInstructionError()
+            hw2 = bytes_to_le16(data, 2)
             word = hw1 | (hw2 << 16)
             node = self._tree32
         else:
@@ -94,24 +105,27 @@ class DecoderTree(object):
                     raise UndefinedInstructionError()
             else:
                 assert len(node.children) == 1
-                return node.children[0].decode(word, hw2)
+                return node.children[0].decode(word)
 
     def _build_tree(self, decoders):
         # Sort decoders in descending order of number of bits set in the mask.
+        # This sorting is required for proper computation of the common mask.
         decoders = sorted(decoders, key=lambda d:hamming_weight(d._mask), reverse=True)
 
+        # If there is only one decoder at this level, there is nothing left to do.
         if len(decoders) < 2:
             return DecoderTreeNode(mask=0, children=decoders)
 
-        # Compute the mask that all decoders at this level have set.
-        mergedMask = reduce(lambda a, b: a & b, [d._mask for d in decoders])
-        if mergedMask == 0:
-            return DecoderTreeNode(mask=mergedMask, children=decoders)
+        # Compute the mask of common bits that all decoders at this level have set.
+        commonMask = reduce(lambda a, b: a & b, [d._mask for d in decoders])
+        if commonMask == 0:
+            return DecoderTreeNode(mask=commonMask, children=decoders)
 
-        # Find all decoders that have matching values under the merged mask.
-        children = defaultdict(lambda :list())
+        # Find all decoders that have the same match values masked by the common mask.
+        children = defaultdict(list)
         for decoder in decoders:
-            children[decoder._match & mergedMask].append(decoder)
+            children[decoder._match & commonMask].append(decoder)
+        assert len(children) != 1
         if len(children) == 1:
             return DecoderTreeNode(mask=0, children=children.values())
 
@@ -119,26 +133,31 @@ class DecoderTree(object):
         for k, subdecoders in children.iteritems():
             children[k] = self._build_tree(subdecoders)
 
-        return DecoderTreeNode(mask=mergedMask, children=children)
+        return DecoderTreeNode(mask=commonMask, children=children)
 
     def dump(self, t=None, depth=0):
         if t is None:
-            t = self._tree
-        mask, nodes = t.mask, t.children
-        print "  " * depth, hex(mask), "=>"
-        if type(nodes) is list:
-            for i,d in enumerate(nodes):
-                print "  " * depth, i, ":", d
+            print "16-bit instructions:"
+            self.dump(self._tree16)
+            print "32-bit instructions:"
+            self.dump(self._tree32)
         else:
-            for i,k in enumerate(nodes.iterkeys()):
-                print "  " * depth, i, ":", hex(k)
-                self.dump(nodes[k], depth+1)
+            mask, nodes = t.mask, t.children
+            print "  " * depth, hex(mask), "=>"
+            if type(nodes) is list:
+                for i,d in enumerate(nodes):
+                    print "  " * (depth + 1), i, ":", d
+            else:
+                for i,k in enumerate(nodes.iterkeys()):
+                    print "  " * (depth + 1), i, ":", hex(k)
+                    self.dump(nodes[k], depth+2)
 
 DECODER_TREE = DecoderTree()
 
 class Decoder(object):
-    def __init__(self, handler, spec, spec2=None, **kwargs):
+    def __init__(self, handler, mnemonic, spec, spec2=None, **kwargs):
         self._handler = handler
+        self._mnemonic = mnemonic
         self.spec = spec
         self.spec2 = spec2
         self.args = kwargs
@@ -161,17 +180,13 @@ class Decoder(object):
         attrs = {}
         for n,f in self._attrs.iteritems():
             attrs[n] = f(hw1)
-#         if self._attrs2 is not None:
-#             for n,f in self._attrs2.iteritems():
-#                 attrs[n] = f(hw2)
 
-        i = Instruction(hw1, hw2, attrs, self._handler)
-
+        i = Instruction(self._mnemonic, hw1, hw2, attrs, self._handler)
 
         return i
 
     def __repr__(self):
-        return "<Decoder@0x%x %x/%x %s %s>" % (id(self), self._mask, self._match, self._attrs)
+        return "<Decoder@0x%x %s %x/%x %s>" % (id(self), self._mnemonic, self._mask, self._match, self._attrs.keys())
 
     def process_fmt(self, fmt, offset=0):
         i = 0
@@ -187,8 +202,7 @@ class Decoder(object):
             elif type(f) is tuple:
                 # Put a lambda to extract this named field from the instruction word into the d dict.
                 name, size = f
-                attrMask = (1 << size) - 1
-                d[name] = lambda b,i=i+offset,attrMask=attrMask: (b >> i) & attrMask
+                d[name] = lambda b,i=i+offset,size=size: bitstring(b >> i, size)
                 i += size
             else:
                 raise ValueError("unexpected format element in spec: %s" % f)
@@ -197,9 +211,9 @@ class Decoder(object):
 
 ##
 # @brief Decorator to build Decoder object from instruction format strings.
-def instr(spec, spec2=None, **kwargs):
+def instr(mnemonic, spec, spec2=None, **kwargs):
     def doit(fn):
-        DECODER_TREE.add_decoder(Decoder(fn, spec, spec2, **kwargs))
+        DECODER_TREE.add_decoder(Decoder(fn, mnemonic, spec, spec2, **kwargs))
         return fn
     return doit
 

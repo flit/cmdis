@@ -29,8 +29,8 @@
 
 from .decoder import instr
 
-@instr("010000 0101 Rm(3) Rdn(3)", mnemonic="adc")
-def ADC(Rm, Rdn):
+@instr("adc", "010000 0101 Rm(3) Rdn(3)")
+def ADC(cpu, Rm, Rdn):
     pass
 #     d = UInt(Rdn)
 #     n = UInt(Rdn)
@@ -48,8 +48,8 @@ def ADC(Rm, Rdn):
 #             APSR.C = carry
 #             APSR.V = overflow
 
-@instr("000 11 1 0 imm3(3) Rn(3) Rd(3)", mnemonic="add")
-def ADD_imm_T1(imm3, Rn, Rd):
+@instr("add", "000 11 1 0 imm3(3) Rn(3) Rd(3)")
+def ADD_imm_T1(cpu, imm3, Rn, Rd):
     pass
 #     d = UInt(Rd)
 #     n = UInt(Rn)
@@ -65,42 +65,50 @@ def ADD_imm_T1(imm3, Rn, Rd):
 #             APSR.C = carry
 #             APSR.V = overflow
 
-@instr("001 10 Rdn(3) imm8(8)", mnemonic="add")
-def ADD_imm_T2(Rdn, imm8):
+@instr("add", "001 10 Rdn(3) imm8(8)")
+def ADD_imm_T2(cpu, Rdn, imm8):
     pass
 
-@instr("000 11 0 0 Rm(3) Rn(3) Rd(3)", mnemonic="add")
-def ADD_reg_T1(Rm, Rn, Rd):
+@instr("add", "000 11 0 0 Rm(3) Rn(3) Rd(3)")
+def ADD_reg_T1(cpu, Rm, Rn, Rd):
     pass
 
-@instr("010001 00 DN Rm(4) Rdn(3)", mnemonic="add")
-def ADD_reg_T2(Rm, Rn, Rd):
+@instr("add", "010001 00 DN Rm(4) Rdn(3)")
+def ADD_reg_T2(cpu, Rm, Rn, Rd):
     pass
 
-@instr("1010 1 Rd(3) imm8(8)", mnemonic="add")
-def ADD_sp_plus_imm_T1(Rn, imm8):
+@instr("add", "1010 1 Rd(3) imm8(8)")
+def ADD_sp_plus_imm_T1(cpu, Rn, imm8):
     pass
 
-@instr("1011 0000 0 imm7(7)", mnemonic="add")
-def ADD_sp_plus_imm_T2(imm7):
+@instr("add", "1011 0000 0 imm7(7)")
+def ADD_sp_plus_imm_T2(cpu, imm7):
     pass
 
 
 
-@instr("1101 cond(4) imm8(8)", mnemonic="b")
-def B_T1(imm7):
+@instr("b", "1101 cond(4) imm8(8)")
+def B_T1(cpu, cond, imm8):
     pass
 
-@instr("11100 imm11(11)", mnemonic="b")
-def B_T2(imm7):
+@instr("b", "11100 imm11(11)")
+def B_T2(cpu, imm11):
     pass
 
-@instr("11110 S imm10(10)", "11 J1 1 J2 imm11(11)", mnemonic="bl")
-def BL_T1(imm7):
-    pass
+@instr("bl", "11110 S imm10(10)", "11 J1 1 J2 imm11(11)")
+def BL_T1(cpu, S, imm10, J1, J2, imm11):
+    I1 = ~(J1 ^ S)
+    I2 = ~(J2 ^ S)
+    imm32 = (S + I1 + I2+ imm10 + imm11 + '0').sign_extend(32)
+#     print imm32
+    next_instr = cpu.pc
+    cpu.lr = next_instr | 1
+    cpu.pc = next_instr + imm32.signed
+#     cpu.write_register('lr', next_instr | 1)
+#     cpu.write_register('pc', next_instr + imm32.signed)
 
-@instr("010001 11 1 Rm(4) 000", mnemonic="blx")
-def BLX_T1(imm7):
+@instr("blx", "010001 11 1 Rm(4) 000")
+def BLX_T1(cpu, imm7):
     pass
 
 
