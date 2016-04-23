@@ -29,27 +29,44 @@
 
 from .bitstring import bitstring
 from .utilities import (bytes_to_le16, hamming_weight)
+from .formatter import Formatter
 import string
 from collections import (defaultdict, namedtuple)
 
 class Instruction(object):
-    def __init__(self, mnemonic, hw1, hw2=None, attrs=None, handler=None):
+    def __init__(self, mnemonic, word, is32bit, attrs=None):
         self._mnemonic = mnemonic
-        self._hw1 = hw1
-        self._hw2 = hw2
+        self._word = word
+        self._is32bit = is32bit
         self._attrs = attrs
-        self._handler = handler
+        self._address = 0
+        self._operands = []
+
+    @property
+    def mnemonic(self):
+        return self._mnemonic
 
     @property
     def size(self):
-        return 2 + (2 if self._hw2 is not None else 0)
+        return 4 if self._is32bit else 2
+
+    @property
+    def address(self):
+        return self._address
+
+    @property
+    def bytes(self):
+        return bytearray((self._word >> (8 * i)) & 0xff for i in range(self.size))
+
+    def _eval(self, cpu):
+        pass
 
     def execute(self, cpu):
-        return self._handler(cpu, **self._attrs)
+        return self._eval(cpu)
 
     def __repr__(self):
-        i2 = " %04x" % self._hw2 if self._hw2 is not None else ''
-        return "<Instruction@0x%x %s %04x%s %s>" % (id(self), self._mnemonic, self._hw1, i2, self._attrs)
+        i = (" %08x" if self._is32bit else " %04x") % self._word
+        return "<Instruction@0x%x %s %s %s>" % (id(self), self._mnemonic, i, self._attrs)
 
 DecoderTreeNode = namedtuple('DecoderTreeNode', 'mask children')
 
@@ -82,7 +99,7 @@ class DecoderTree(object):
         self._tree16 = self._build_tree(self._decoders16)
         self._tree32 = self._build_tree(self._decoders32)
 
-    def decode(self, data):
+    def decode(self, data, dataAddress=None):
         assert len(data) >= 2
         hw1 = bytes_to_le16(data)
         is32bit = hw1 & self._32bitMask in self._32bitPrefixes
@@ -155,9 +172,10 @@ class DecoderTree(object):
 DECODER_TREE = DecoderTree()
 
 class Decoder(object):
-    def __init__(self, handler, mnemonic, spec, spec2=None, **kwargs):
+    def __init__(self, handler, mnemonic, klass, spec, spec2=None, **kwargs):
         self._handler = handler
         self._mnemonic = mnemonic
+        self._klass = klass
         self.spec = spec
         self.spec2 = spec2
         self.args = kwargs
@@ -176,12 +194,13 @@ class Decoder(object):
         else:
             self.is32bit = False
 
-    def decode(self, hw1, hw2=0):
+    def decode(self, word):
         attrs = {}
         for n,f in self._attrs.iteritems():
-            attrs[n] = f(hw1)
+            attrs[n] = f(word)
 
-        i = Instruction(self._mnemonic, hw1, hw2, attrs, self._handler)
+        i = self._klass(self._mnemonic, word, self.is32bit, attrs)
+        self._handler(i, **attrs)
 
         return i
 
@@ -211,9 +230,9 @@ class Decoder(object):
 
 ##
 # @brief Decorator to build Decoder object from instruction format strings.
-def instr(mnemonic, spec, spec2=None, **kwargs):
+def instr(mnemonic, klass, spec, spec2=None, **kwargs):
     def doit(fn):
-        DECODER_TREE.add_decoder(Decoder(fn, mnemonic, spec, spec2, **kwargs))
+        DECODER_TREE.add_decoder(Decoder(fn, mnemonic, klass, spec, spec2, **kwargs))
         return fn
     return doit
 
