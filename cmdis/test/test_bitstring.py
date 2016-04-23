@@ -154,3 +154,59 @@ class TestBitstring:
         assert b.value == 135
         assert b.mask == (1 << 20) - 1
 
+    def test_is_zero(self):
+        assert bitstring('00000').is_zero()
+        assert not bitstring('0010').is_zero()
+
+    def test_is_ones(self):
+        assert not bitstring('0000').is_ones()
+        assert bitstring('1111').is_ones()
+
+    def test_bit_count(self):
+        assert bitstring('0').bit_count() == 0
+        assert bitstring('1').bit_count() == 1
+        assert bitstring(0, 0).bit_count() == 0
+        assert bitstring('000000').bit_count() == 0
+        assert bitstring('100000').bit_count() == 1
+        assert bitstring('010101').bit_count() == 3
+        assert bitstring('111111').bit_count() == 6
+
+    def test_lowest_set(self):
+        assert bitstring('000000').lowest_set_bit() == 6
+        assert bitstring('000001').lowest_set_bit() == 0
+        assert bitstring('100000').lowest_set_bit() == 5
+        assert bitstring('101100').lowest_set_bit() == 2
+
+    def test_highest_set(self):
+        assert bitstring('000000').highest_set_bit() == -1
+        assert bitstring('000001').highest_set_bit() == 0
+        assert bitstring('010001').highest_set_bit() == 4
+        assert bitstring('101011').highest_set_bit() == 5
+
+    def test_sign_extend(self):
+        assert bitstring('00001').sign_extend(8) == bitstring('00000001')
+        assert bitstring('1000').sign_extend(8) == bitstring('11111000')
+
+    def test_zero_extend(self):
+        assert bitstring('00001').zero_extend(8) == bitstring('00000001')
+        assert bitstring('1000').zero_extend(8) == bitstring('00001000')
+
+    def test_invert(self):
+        assert bitstring('1').invert() == bitstring('0')
+        assert bitstring('0').invert() == bitstring('1')
+        assert bitstring('0010010').invert() == bitstring('1101101')
+
+    def test_append(self):
+        assert bitstring() + bitstring('0') == bitstring('0')
+        assert bitstring('01001') + bitstring('11110') == bitstring('0100111110')
+
+    def test_eq(self):
+        assert bitstring('0') == 0
+        assert bitstring('1') == 1
+        assert bitstring('0') == bitstring('0')
+        assert bitstring('1') == bitstring('1')
+        assert bitstring('0') == '0'
+        assert bitstring('1') == '1'
+        assert bitstring('000100') == bitstring('000100')
+
+

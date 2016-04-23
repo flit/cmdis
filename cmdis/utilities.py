@@ -41,3 +41,63 @@ def hamming_weight(v):
 def bytes_to_le16(data, offset=0):
     return data[offset] | (data[offset+1] << 8)
 
+## @brief Returns an integer with all bits set up to but not including bit n.
+#
+# If n == 4, then 0xf will be returned.
+def wmask(n):
+    return (1 << n) - 1
+
+## @brief Returns a mask with specified bit ranges set.
+#
+# An integer mask is generated based on the bits and bit ranges specified by the
+# arguments. Any number of arguments can be provided. Each argument may be either
+# a 2-tuple of integers, a list of integers, or an individual integer. The result
+# is the combination of masks produced by the arguments.
+#
+# - 2-tuple: The tuple is a bit range with the first element being the MSB and the
+#       second element the LSB. All bits from LSB up to and included MSB are set.
+# - list: Each bit position specified by the list elements is set.
+# - int: The specified bit position is set.
+#
+# @return An integer mask value computed from the logical OR'ing of masks generated
+#   by each argument.
+#
+# Example:
+# @code
+#   >>> hex(bitmask((23,17),1))
+#   0xfe0002
+#   >>> hex(bitmask([4,0,2],(31,24))
+#   0xff000015
+# @endcode
+def bitmask(*args):
+    mask = 0
+
+    for a in args:
+        if type(a) is tuple:
+            for b in range(a[1], a[0]+1):
+                mask |= 1 << b
+        elif type(a) is list:
+            for b in a:
+                mask |= 1 << b
+        elif type(a) is int:
+            mask |= 1 << a
+
+    return mask
+
+## @brief Return the 32-bit inverted value of the argument.
+def invert32(value):
+    return 0xffffffff & ~value
+
+## @brief Extract a value from a bitfield.
+def bfx(value, msb, lsb=None):
+    lsb = lsb or msb
+    mask = bitmask((msb, lsb))
+    return (value & mask) >> lsb
+
+## @brief Change a bitfield value.
+def bfi(value, field, msb, lsb=None):
+    lsb = lsb or msb
+    mask = bitmask((msb, lsb))
+    value &= ~mask
+    value |= (field << lsb) & mask
+    return value

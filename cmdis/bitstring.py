@@ -79,6 +79,9 @@ class bitstring(object):
 
     @property
     def signed(self):
+        if self._width < 2:
+            return 0
+
         w1 = self._width - 1
         s = (self._value >> w1) & 1
         if s:
@@ -119,13 +122,31 @@ class bitstring(object):
         return hash(repr(self))
 
     def __eq__(self, other):
-        return (self._width == other._width and self._value == other._value) \
-            if isinstance(other, bitstring) else NotImplemented
+        if isinstance(other, six.integer_types):
+            # If other is negative then compare the signed value of this bitstring.
+            if other < 0:
+                return self.signed == other
+            else:
+                return self._value == other
+        elif isinstance(other, six.string_types):
+            return self.__eq__(bitstring(other))
+        else:
+            return (self._width == other._width and self._value == other._value) \
+                if isinstance(other, bitstring) else NotImplemented
 
     def __lt__(self, other):
-        return ((self._width < other._width) if (self._value == other._value) \
-            else (self._value < other._value)) \
-            if isinstance(other, bitstring) else NotImplemented
+        if isinstance(other, six.integer_types):
+            # If other is negative then compare the signed value of this bitstring.
+            if other < 0:
+                return self.signed < other
+            else:
+                return self._value < other
+        elif isinstance(other, six.string_types):
+            return self.__lt__(bitstring(other))
+        else:
+            return ((self._width < other._width) if (self._value == other._value) \
+                else (self._value < other._value)) \
+                if isinstance(other, bitstring) else NotImplemented
 
     def __nonzero__(self):
         return self._value != 0
@@ -147,17 +168,51 @@ class bitstring(object):
     def get_bit_value(self, bitpos):
         return (self._value >> bitpos) & 1
 
+    def bit_count(self):
+        count = 0
+        v = self._value
+        while v != 0:
+            count += v & 1
+            v >>= 1
+        return count
+
+    def is_zero(self):
+        return self._value == 0
+
+    def is_ones(self):
+        return self.bit_count() == self._width
+
+    def is_zero_bit(self):
+        return bitstring('1') if self.is_zero() else bitstring('0')
+
+    def is_ones_bit(self):
+        return bitstring('1') if self.is_ones() else bitstring('0')
+
+    def lowest_set_bit(self):
+        v = self._value
+        for n in range(0, self._width):
+            if v & 1:
+                return n
+            v >>= 1
+        return self._width
+
+    def highest_set_bit(self):
+        for n in range(self._width - 1, -1, -1):
+            if (self._value >> n) & 1:
+                return n
+        return -1
+
     def __getitem__(self, key):
         if isinstance(key, slice):
             start, stop, step = key.indices(self._width)
-            print start, stop, step
+#             print start, stop, step
             i = start
             result = bitstring()
             while (i < stop) if (step > 0) else (i > stop):
-                print i
-                bt = self.get_bit(i)
-                print bt
-                result += bt #self.get_bit(i)
+#                 print i
+#                 bt = self.get_bit(i)
+#                 print bt
+                result = self.get_bit(i) + result
                 i += step
             return result
         elif isinstance(key, six.integer_types):
@@ -211,6 +266,13 @@ class bitstring(object):
         d = width - self._width
         b = bitstring([s] * d)
         return b + self
+
+    def zero_extend(self, width):
+        if width < self._width:
+            raise ValueError("new width is smaller than current")
+        elif width == self._width:
+            return self
+        return bitstring(self, width)
 
     def invert(self):
         return bitstring(self._mask & ~self._value, self._width)
@@ -306,7 +368,14 @@ class bitstring(object):
     def __hex__(self):
         return "%d'h%0*x" % (self._width, (self._width + 3) // 4, self._value)
 
+bit0 = bitstring('0')
+bit1 = bitstring('1')
 
+def zeros(count):
+    return bitstring('0' * count)
+
+def ones(count):
+    return bitstring('1' * count)
 
 
 
