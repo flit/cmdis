@@ -28,46 +28,65 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from .decoder import instr
+from .utilities import wmask
+from .bitstring import (bitstring, bit0, bit1)
+from . import helpers
 
-@instr("adc", "010000 0101 Rm(3) Rdn(3)")
+@instr("adcs", "010000 0101 Rm(3) Rdn(3)")
 def ADC(cpu, Rm, Rdn):
-    pass
-#     d = UInt(Rdn)
-#     n = UInt(Rdn)
-#     m = UInt(Rm)
-#     setflags = !InITBlock()
+    d = Rdn.unsigned
+    n = Rdn.unsigned
+    m = Rm.unsigned
+    setflags = True #!InITBlock()
 #     shift_t, shift_n = SRType_LSL, 0
-#
-#     if ConditionPassed():
-#         shifted = Shift(R[m], shift_t, shift_n, APSR.C)
-#         (result, carry, overflow) = AddWithCarry(R[n], shifted, APSR.C)
-#         R[d = result
-#         if setflags:
-#             APSR.N = result[31]
-#             APSR.Z = IsZeroBit(result)
-#             APSR.C = carry
-#             APSR.V = overflow
 
-@instr("add", "000 11 1 0 imm3(3) Rn(3) Rd(3)")
-def ADD_imm_T1(cpu, imm3, Rn, Rd):
-    pass
-#     d = UInt(Rd)
-#     n = UInt(Rn)
-#     setflags = !InITBlock()
-#     imm32 = ZeroExtend(imm3, 32)
-#
 #     if ConditionPassed():
-#         (result, carry, overflow) = AddWithCarry(R[n], imm32, 0)
-#         R[d] = result
-#         if setflags:
-#             APSR.N = result[31]
-#             APSR.Z = IsZeroBit(result)
-#             APSR.C = carry
-#             APSR.V = overflow
+#     shifted = Shift(cpu.r[m], shift_t, shift_n, cpu.apsr.c)
+    result, carry, overflow = helpers.AddWithCarry(cpu.r[n], cpu.r[m], cpu.apsr.c)
+    cpu.r[d] = result
+    if setflags:
+        cpu.apsr.n = result[31]
+        cpu.apsr.z = result.is_zero_bit()
+        cpu.apsr.c = carry
+        cpu.apsr.v = overflow
+
+    cpu.pc = cpu.pc.unsigned + 2
+
+@instr("adds", "000 11 1 0 imm3(3) Rn(3) Rd(3)")
+def ADD_imm_T1(cpu, imm3, Rn, Rd):
+    d = Rd.unsigned
+    n = Rn.unsigned
+    setflags = True #!InITBlock()
+    imm32 = imm3.zero_extend(32)
+
+#     if ConditionPassed():
+    (result, carry, overflow) = helpers.AddWithCarry(cpu.r[n], imm32, bit0)
+    cpu.r[d] = result
+    if setflags:
+        cpu.apsr.n = result[31]
+        cpu.apsr.z = result.is_zero_bit()
+        cpu.apsr.c = carry
+        cpu.apsr.v = overflow
+
+    cpu.pc = cpu.pc.unsigned + 2
 
 @instr("add", "001 10 Rdn(3) imm8(8)")
 def ADD_imm_T2(cpu, Rdn, imm8):
-    pass
+    d = Rdn.unsigned
+    n = Rdn.unsigned
+    setflags = True #!InITBlock()
+    imm32 = imm8.zero_extend(32)
+
+#     if ConditionPassed():
+    (result, carry, overflow) = helpers.AddWithCarry(cpu.r[n], imm32, bit0)
+    cpu.r[d] = result
+    if setflags:
+        cpu.apsr.n = result[31]
+        cpu.apsr.z = result.is_zero_bit()
+        cpu.apsr.c = carry
+        cpu.apsr.v = overflow
+
+    cpu.pc = cpu.pc.unsigned + 2
 
 @instr("add", "000 11 0 0 Rm(3) Rn(3) Rd(3)")
 def ADD_reg_T1(cpu, Rm, Rn, Rd):
@@ -100,12 +119,9 @@ def BL_T1(cpu, S, imm10, J1, J2, imm11):
     I1 = ~(J1 ^ S)
     I2 = ~(J2 ^ S)
     imm32 = (S + I1 + I2+ imm10 + imm11 + '0').sign_extend(32)
-#     print imm32
     next_instr = cpu.pc
     cpu.lr = next_instr | 1
-    cpu.pc = next_instr + imm32.signed
-#     cpu.write_register('lr', next_instr | 1)
-#     cpu.write_register('pc', next_instr + imm32.signed)
+    cpu.pc = next_instr.unsigned + imm32.signed
 
 @instr("blx", "010001 11 1 Rm(4) 000")
 def BLX_T1(cpu, imm7):
