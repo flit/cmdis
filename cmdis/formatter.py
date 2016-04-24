@@ -28,6 +28,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from .utilities import bytes_to_le16
+from .registers import CORE_REGISTER_NAMES
 
 class Operand(object):
     def format(self, formatter):
@@ -38,7 +39,7 @@ class RegisterOperand(Operand):
         self._reg = reg
 
     def format(self, formatter):
-        return "r%d" % self._reg
+        return CORE_REGISTER_NAMES[self._reg]
 
 class ImmediateOperand(Operand):
     def __init__(self, imm):
@@ -54,10 +55,11 @@ class LabelOperand(Operand):
     def format(self, formatter):
         # Add a comment with the absolute address of the label.
         # TODO use instr address instead of pc
+        # TODO handle pc + 4
         comment = "0x%08x" % (formatter.cpu.pc.unsigned + self._offset)
         formatter.add_comment(comment)
 
-        return "*%+d" % self._offset
+        return ".%+d" % self._offset
 
 class Formatter(object):
     def __init__(self, cpu):

@@ -41,6 +41,24 @@ def hamming_weight(v):
 def bytes_to_le16(data, offset=0):
     return data[offset] | (data[offset+1] << 8)
 
+## @brief Convert four bytes to an unsigned halfword.
+#
+# @param data Iterable of ints where each is 0 <= x < 256.
+def bytes_to_le32(data, offset=0):
+    return data[offset] | (data[offset+1] << 8) | (data[offset+2] << 16) | (data[offset+3] << 24)
+
+## @brief Convert an unsigned halfword to a bytearray.
+#
+# @param data Integer.
+def le16_to_bytes(value, offset=0):
+    return bytearray((value >> (i * 8)) & 0xff for i in range(2))
+
+## @brief Convert an unsigned halfword to a bytearray.
+#
+# @param data Integer.
+def le32_to_bytes(value, offset=0):
+    return bytearray((value >> (i * 8)) & 0xff for i in range(4))
+
 ## @brief Returns an integer with all bits set up to but not including bit n.
 #
 # If n == 4, then 0xf will be returned.

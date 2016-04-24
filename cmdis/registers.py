@@ -92,6 +92,17 @@ CORE_REGISTER = {
                  's31': 0x5f,
                  }
 
+# Build a reverse register dictionary.
+CORE_REGISTER_NAMES = {}
+for k, v in CORE_REGISTER.iteritems():
+    CORE_REGISTER_NAMES[v] = k
+
+# Fix up a few registers that have multiple names in CORE_REGISTER to make
+# sure we get the special names.
+CORE_REGISTER_NAMES[13] = 'sp'
+CORE_REGISTER_NAMES[14] = 'lr'
+CORE_REGISTER_NAMES[15] = 'pc'
+
 def register_name_to_index(reg):
     if isinstance(reg, six.string_types):
         try:

@@ -36,6 +36,9 @@ class MockCpuModelDelegate(CpuModelDelegate):
         for reg in CORE_REGISTER.values():
             self._regs[reg] = 0
 
+        # set T bit in xpsr
+        self._regs[16] = 0x01000000
+
     def read_register(self, reg):
         return self._regs[reg]
 
