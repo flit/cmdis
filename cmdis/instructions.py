@@ -93,7 +93,7 @@ def add_reg_t1(i, Rm, Rn, Rd):
 @instr("add", Add, "010001 00 DN Rm(4) Rdn(3)")
 def add_reg_t2(i, DN, Rm, Rdn):
     # if (DN:Rdn) == '1101' || Rm == '1101' then SEE ADD (SP plus register);
-    i.d = (DN + Rdn).unsigned
+    i.d = (DN % Rdn).unsigned
     i.n = i.d
     i.m = Rm.unsigned
     # if n == 15 && m == 15 then UNPREDICTABLE;
@@ -106,7 +106,7 @@ def add_sp_plus_imm_t1(i, Rd, imm8):
     i.d = Rd.unsigned
     i.n = 13
     i.setflags = False
-    i.imm32 = (imm8 + '00').zero_extend(32)
+    i.imm32 = (imm8 % '00').zero_extend(32)
     i.operands = [RegisterOperand(i.d), RegisterOperand(13), ImmediateOperand(i.imm32.unsigned)]
 
 @instr("add", Add, "1011 0000 0 imm7(7)")
@@ -114,7 +114,7 @@ def add_sp_plus_imm_t2(i, imm7):
     i.d = 13
     i.n = 13
     i.setflags = False
-    i.imm32 = (imm7 + '00').zero_extend(32)
+    i.imm32 = (imm7 % '00').zero_extend(32)
     i.operands = [RegisterOperand(13), ImmediateOperand(i.imm32.unsigned)]
 
 # ------------------------------ Branch instructions ------------------------------
@@ -152,7 +152,7 @@ class Branch(Instruction):
         if self.cond.expr(cpu.apsr):
             # TODO bl: next_inst_addr = pc
             # TODO blx: next_inst_addr = pc - 2
-            next_instr = cpu.pc.unsigned + 4 + self.pc_delta
+            next_instr = cpu.pc + 4 + self.pc_delta
             if self.with_link:
                 cpu.lr = next_instr | 1
 
@@ -163,9 +163,9 @@ class Branch(Instruction):
                 cpu.pc = target
             else:
                 # Branch to immediate offset
-                cpu.pc = next_instr + self.imm32.signed
+                cpu.pc = next_instr + self.imm32
         else:
-            cpu.pc = cpu.pc.unsigned + self.size
+            cpu.pc = cpu.pc + self.size
 
 @instr("b", Branch, "1101 cond(4) imm8(8)")
 def b_t1(i, cond, imm8):
@@ -173,20 +173,20 @@ def b_t1(i, cond, imm8):
     # if cond == '1111' then SEE SVC;
     i.cond = CONDITIONS[cond.unsigned]
     i._mnemonic = 'b' + CONDITIONS[cond.unsigned].mnemonic
-    i.imm32 = (imm8 + '0').sign_extend(32)
+    i.imm32 = (imm8 % '0').sign_extend(32)
     i.operands = [LabelOperand(i.imm32.signed)]
 
 @instr("b", Branch, "11100 imm11(11)")
 def b_t2(i, imm11):
     i.cond = bitstring('1111')
-    i.imm32 = (imm11 + '0').sign_extend(32)
+    i.imm32 = (imm11 % '0').sign_extend(32)
     i.operands = [LabelOperand(i.imm32.signed)]
 
 @instr("bl", Branch, "11110 S imm10(10)", "11 J1 1 J2 imm11(11)")
 def bl_t1(i, S, imm10, J1, J2, imm11):
     I1 = ~(J1 ^ S)
     I2 = ~(J2 ^ S)
-    i.imm32 = (S + I1 + I2+ imm10 + imm11 + '0').sign_extend(32)
+    i.imm32 = (S % I1 % I2 % imm10 % imm11 % '0').sign_extend(32)
     i.with_link = True
     i.operands = [LabelOperand(i.imm32.signed)]
 

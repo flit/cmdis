@@ -205,13 +205,9 @@ class bitstring(object):
     def __getitem__(self, key):
         if isinstance(key, slice):
             start, stop, step = key.indices(self._width)
-#             print start, stop, step
             i = start
             result = bitstring()
             while (i < stop) if (step > 0) else (i > stop):
-#                 print i
-#                 bt = self.get_bit(i)
-#                 print bt
                 result = self.get_bit(i) + result
                 i += step
             return result
@@ -265,7 +261,7 @@ class bitstring(object):
         s = (self._value >> w1) & 1
         d = width - self._width
         b = bitstring([s] * d)
-        return b + self
+        return b % self
 
     def zero_extend(self, width):
         if width < self._width:
@@ -279,11 +275,28 @@ class bitstring(object):
 
     def __add__(self, other):
         b = bitstring(self)
-        b += other
+        b.__iadd__(other)
+        return b
+
+    def __sub__(self, other):
+        b = bitstring(self)
+        b.__isub__(other)
         return b
 
     def __mul__(self, other):
-        return NotImplemented
+        b = bitstring(self)
+        b.__imul__(other)
+        return b
+
+    def __floordiv__(self, other):
+        b = bitstring(self)
+        b.__ifloordiv__(other)
+        return b
+
+    def __mod__(self, other):
+        b = bitstring(self)
+        b.__imod__(other)
+        return b
 
     def __lshift__(self, other):
         if isinstance(other, six.integer_types):
@@ -307,8 +320,11 @@ class bitstring(object):
         if isinstance(other, bitstring):
             width = max(self._width, other._width)
             other = other._value
+            width = self._width
         else:
             width = self._width
+        if isinstance(other, six.string_types):
+            other = bitstring(other).unsigned
         return bitstring(self._value & other, width)
 
     def __xor__(self, other):
@@ -317,6 +333,8 @@ class bitstring(object):
             other = other._value
         else:
             width = self._width
+        if isinstance(other, six.string_types):
+            other = bitstring(other).unsigned
         return bitstring(self._value ^ other, width)
 
     def __or__(self, other):
@@ -325,42 +343,98 @@ class bitstring(object):
             other = other._value
         else:
             width = self._width
+        if isinstance(other, six.string_types):
+            other = bitstring(other).unsigned
         return bitstring(self._value | other, width)
 
     def __iadd__(self, other):
+        if isinstance(other, bitstring):
+            value = other.unsigned
+        elif isinstance(other, six.integer_types):
+            value = other
+        elif isinstance(other, six.string_types):
+            value = bitstring(other).unsigned
+        else:
+            return NotImplemented
+        self._value += value
+        self._value &= self._mask
+        return self
+
+    def __isub__(self, other):
+        if isinstance(other, bitstring):
+            value = other.unsigned
+        elif isinstance(other, six.integer_types):
+            value = other
+        elif isinstance(other, six.string_types):
+            value = bitstring(other).unsigned
+        else:
+            return NotImplemented
+        self._value -= value
+        self._value &= self._mask
+        return self
+
+    def __imul__(self, other):
+        if isinstance(other, bitstring):
+            value = other.unsigned
+        elif isinstance(other, six.integer_types):
+            value = other
+        elif isinstance(other, six.string_types):
+            value = bitstring(other).unsigned
+        else:
+            return NotImplemented
+        self._value *= value
+        self._value &= self._mask
+        return self
+
+    def __ifloordiv__(self, other):
+        if isinstance(other, bitstring):
+            value = other.unsigned
+        elif isinstance(other, six.integer_types):
+            value = other
+        elif isinstance(other, six.string_types):
+            value = bitstring(other).unsigned
+        else:
+            return NotImplemented
+        self._value //= value
+        self._value &= self._mask
+        return self
+
+    def __imod__(self, other):
         if isinstance(other, bitstring):
             self._width += other._width
             self._mask = (1 << self._width) - 1
             self._value = (self._value << other._width) | other._value
             return self
         elif isinstance(other, six.string_types):
-            return self.__iadd__(bitstring(other))
+            return self.__imod__(bitstring(other))
         elif isinstance(other, six.integer_types):
             if other not in (0, 1):
                 raise ValueError("cannot add integer to a bitstring that is neither 0 or 1")
-            return self.__iadd__(bitstring(other, 1))
+            return self.__imod__(bitstring(other, 1))
         elif isinstance(other, collections.Sequence):
-            return self.__iadd__(bitstring(other))
+            return self.__imod__(bitstring(other))
         else:
             return NotImplemented
 
-    def __imul__(self, other):
-        return NotImplemented
-
     def __ilshift__(self, other):
-        return NotImplemented
+        self.set(self.__lshift__(other))
+        return self
 
     def __irshift__(self, other):
-        return NotImplemented
+        self.set(self.__rshift__(other))
+        return self
 
     def __iand__(self, other):
-        return NotImplemented
+        self.set(self.__and__(other))
+        return self
 
     def __ixor__(self, other):
-        return NotImplemented
+        self.set(self.__xor__(other))
+        return self
 
     def __ior__(self, other):
-        return NotImplemented
+        self.set(self.__or__(other))
+        return self
 
     def __invert__(self):
         return self.invert()

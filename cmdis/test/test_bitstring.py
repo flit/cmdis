@@ -207,6 +207,86 @@ class TestBitstring:
         assert bitstring('1') == bitstring('1')
         assert bitstring('0') == '0'
         assert bitstring('1') == '1'
+        assert bitstring('1010') == '1010'
         assert bitstring('000100') == bitstring('000100')
+        assert bitstring('000100') == 4
+
+    def test_append(self):
+        b = bitstring('1010')
+        c = b % bitstring('111')
+        assert c == '1010111'
+        b %= '0011'
+        assert b == '10100011'
+
+    def test_lshift(self):
+        assert bitstring('1100') << 4 == '11000000'
+        b = bitstring('1010')
+        b <<= 3
+        assert b == '1010000'
+
+    def test_rshift(self):
+        assert bitstring('110011') >> 2 == '1100'
+        b = bitstring('10101011')
+        b >>= 4
+        assert b == '1010'
+
+    def test_and(self):
+        assert bitstring('0') & bitstring('0') == '0'
+        assert bitstring('1') & bitstring('1') == '1'
+        assert bitstring('1') & bitstring('0') == '0'
+        assert bitstring('1001010') & '0011100' == '0001000'
+        assert bitstring('100') & 4 == 4
+        b = bitstring('10011')
+        b &= '11111'
+        assert b == '10011'
+
+    def test_or(self):
+        assert bitstring('0') | bitstring('0') == '0'
+        assert bitstring('1') | bitstring('1') == '1'
+        assert bitstring('1') | bitstring('0') == '1'
+        assert bitstring('1001010') | '0011100' == '1011110'
+        assert bitstring('100') | 4 == 4
+        b = bitstring('10011')
+        b |= '11111'
+        assert b == '11111'
+
+    def test_xor(self):
+        assert bitstring('0') ^ bitstring('0') == '0'
+        assert bitstring('1') ^ bitstring('1') == '0'
+        assert bitstring('1') ^ bitstring('0') == '1'
+        assert bitstring('1001010') ^ '0011100' == '1010110'
+        assert bitstring('100') ^ 4 == 0
+        b = bitstring('10011')
+        b ^= '11111'
+        assert b == '01100'
+
+    def test_add(self):
+        assert bitstring('001') + bitstring('001') == '010'
+        assert bitstring('110') + bitstring('011') == '001'
+        assert bitstring('010') + '001' == '011'
+        b = bitstring('0010')
+        b += 4
+        assert b == '0110'
+
+    def test_sub(self):
+        assert bitstring('110') - bitstring('001') == '101'
+        assert bitstring('001') - '001' == '000'
+        b = bitstring('0010')
+        b -= 4
+        assert b == '1110'
+
+    def test_mul(self):
+        assert bitstring('110') * bitstring('001') == '110'
+        assert bitstring('010') * '011' == '110'
+        b = bitstring('0010')
+        b *= 4
+        assert b == '1000'
+
+    def test_floordiv(self):
+        assert bitstring('110') // bitstring('001') == '110'
+        assert bitstring('110') // '010' == '011'
+        b = bitstring('1000')
+        b //= 4
+        assert b == '0010'
 
 
