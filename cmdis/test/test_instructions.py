@@ -27,6 +27,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from __future__ import print_function
 from ..bitstring import *
 from ..disasm import decoder
 from ..model import CpuModel
@@ -52,7 +53,7 @@ class TestAdd:
         i = decoder.decode(le16_to_bytes(0b1010100100000101)) # add r1, sp, #20
         assert i.d == 1
         assert i.imm32 == 20
-        print fmt.format(i)
+        print(fmt.format(i))
         sp = cpu.sp.unsigned
         r1 = cpu.r[1].unsigned
         i.execute(cpu)
@@ -62,7 +63,7 @@ class TestAdd:
         i = decoder.decode(le16_to_bytes(0b1011000000001000)) # add sp, sp, #32
         assert i.d == 13
         assert i.imm32 == 32
-        print fmt.format(i)
+        print(fmt.format(i))
         sp = cpu.sp.unsigned
         i.execute(cpu)
         assert cpu.sp == sp + 32
@@ -74,7 +75,7 @@ class TestAdd:
         assert i.m == 3
         assert i.n == 2
         assert i.d == 1
-        print fmt.format(i)
+        print(fmt.format(i))
         i.execute(cpu)
         assert cpu.r[1] == 1150
 
@@ -85,7 +86,7 @@ class TestAdd:
         assert i.m == 3
         assert i.n == 2
         assert i.d == 2
-        print fmt.format(i)
+        print(fmt.format(i))
         i.execute(cpu)
         assert cpu.r[2] == 1150
 
@@ -95,7 +96,7 @@ class TestAdd:
         assert i.m == 15
         assert i.n == 2
         assert i.d == 2
-        print fmt.format(i)
+        print(fmt.format(i))
         pc = cpu.pc.unsigned
         i.execute(cpu)
         assert cpu.r[2] == pc + 1150
@@ -105,7 +106,7 @@ class TestAdd:
         i = decoder.decode(le16_to_bytes(0b0001110011010001)) # adds r1, r2, #3
         assert i.n == 2
         assert i.d == 1
-        print fmt.format(i)
+        print(fmt.format(i))
         i.execute(cpu)
         assert cpu.r[1] == 203
 
@@ -114,7 +115,7 @@ class TestAdd:
         i = decoder.decode(le16_to_bytes(0b0011000101000100)) # adds r1, #68
         assert i.n == 1
         assert i.d == 1
-        print fmt.format(i)
+        print(fmt.format(i))
         i.execute(cpu)
         assert cpu.r[1] == 168
 
@@ -126,7 +127,7 @@ class TestAdd:
         assert i.m == 7
         assert i.n == 3
         assert i.d == 3
-        print fmt.format(i)
+        print(fmt.format(i))
         i.execute(cpu)
         assert cpu.r[3] == 3
 
@@ -138,7 +139,7 @@ class TestAdd:
         assert i.m == 7
         assert i.n == 3
         assert i.d == 3
-        print fmt.format(i)
+        print(fmt.format(i))
         i.execute(cpu)
         assert cpu.r[3] == 4
 
@@ -148,7 +149,7 @@ class TestBranch:
             cpu.apsr.z = z
             i = decoder.decode(le16_to_bytes(0b1101000000011000)) # beq .+48
             assert i.imm32 == 48
-            print fmt.format(i)
+            print(fmt.format(i))
             pc = cpu.pc.unsigned
             i.execute(cpu)
             if z:
@@ -160,7 +161,7 @@ class TestBranch:
         for c in (0, 1):
             cpu.apsr.c = c
             i = decoder.decode(le16_to_bytes(0b1101001111111100)) # bcc .-48
-            print fmt.format(i)
+            print(fmt.format(i))
             assert i.imm32.signed == -8
             pc = cpu.pc.unsigned
             i.execute(cpu)
@@ -171,7 +172,7 @@ class TestBranch:
 
     def test_bl_t1(self, cpu, fmt):
         i = decoder.decode(bytearray([0x01, 0xf0, 0xaf, 0xff])) # bl .+0x1f5e
-        print fmt.format(i)
+        print(fmt.format(i))
         assert i.imm32.signed == 0x1f5e
         pc = cpu.pc.unsigned
         i.execute(cpu)
@@ -181,7 +182,7 @@ class TestBranch:
     def test_blx_t1(self, cpu, fmt):
         cpu.r[3] = 0x1001
         i = decoder.decode(le16_to_bytes(0b0100011110011000)) # blx r3
-        print fmt.format(i)
+        print(fmt.format(i))
         assert i.m == 3
         pc = cpu.pc.unsigned
         i.execute(cpu)

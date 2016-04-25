@@ -27,6 +27,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from __future__ import print_function
 from .registers import register_name_to_index
 from .utilities import (bfi, bfx)
 from .bitstring import bitstring
@@ -233,14 +234,14 @@ class CpuModel(object):
         return self.write_memory(addr, value, 8)
 
     def dump(self):
-        print "r0=%08x    r4=%08x    r8 =%08x   r12=%08x" % (
-            self.r[0], self.r[4], self.r[8], self.r[12])
-        print "r1=%08x    r5=%08x    r9 =%08x   sp =%08x" % (
-            self.r[1], self.r[5], self.r[9], self.sp)
-        print "r2=%08x    r6=%08x    r10=%08x   lr =%08x" % (
-            self.r[2], self.r[6], self.r[10], self.lr)
-        print "r3=%08x    r7=%08x    r11=%08x   pc =%08x" % (
-            self.r[3], self.r[7], self.r[11], self.pc)
+        print("r0=%08x    r4=%08x    r8 =%08x   r12=%08x" % (
+            self.r[0], self.r[4], self.r[8], self.r[12]))
+        print("r1=%08x    r5=%08x    r9 =%08x   sp =%08x" % (
+            self.r[1], self.r[5], self.r[9], self.sp))
+        print("r2=%08x    r6=%08x    r10=%08x   lr =%08x" % (
+            self.r[2], self.r[6], self.r[10], self.lr))
+        print("r3=%08x    r7=%08x    r11=%08x   pc =%08x" % (
+            self.r[3], self.r[7], self.r[11], self.pc))
 
     def __repr__(self):
         return "<%s@%s pc=%x xpsr=%x>" % (self.__class__.__name__, hex(id(self)), self.pc, self.xpsr)

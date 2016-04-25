@@ -27,6 +27,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from __future__ import print_function
 from .bitstring import bitstring
 from .utilities import (bytes_to_le16, hamming_weight)
 from .formatter import Formatter
@@ -154,19 +155,19 @@ class DecoderTree(object):
 
     def dump(self, t=None, depth=0):
         if t is None:
-            print "16-bit instructions:"
+            print("16-bit instructions:")
             self.dump(self._tree16)
-            print "32-bit instructions:"
+            print("32-bit instructions:")
             self.dump(self._tree32)
         else:
             mask, nodes = t.mask, t.children
-            print "  " * depth, hex(mask), "=>"
+            print("  " * depth, hex(mask), "=>")
             if type(nodes) is list:
                 for i,d in enumerate(nodes):
-                    print "  " * (depth + 1), i, ":", d
+                    print("  " * (depth + 1), i, ":", d)
             else:
                 for i,k in enumerate(nodes.iterkeys()):
-                    print "  " * (depth + 1), i, ":", hex(k)
+                    print("  " * (depth + 1), i, ":", hex(k))
                     self.dump(nodes[k], depth+2)
 
 DECODER_TREE = DecoderTree()
