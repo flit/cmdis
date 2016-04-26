@@ -131,6 +131,26 @@ def Shift(value, type, amount, carry_in):
     result, _ = Shift_C(value, type, amount , carry_in)
     return result
 
+def DecodeImmShift(type, imm5):
+    if type == '00':
+        shift_t = SRType.SRType_LSL
+        shift_n = imm5.unsigned
+    elif type == '01':
+        shift_t = SRType.SRType_LSR
+        shift_n = 32 if imm5 == '00000' else imm5.unsigned
+    elif type == '10':
+        shift_t = SRType.SRType_ASR
+        shift_n = 32 if imm5 == '00000' else imm5.unsigned
+    elif type == '11':
+        if imm5 == '00000':
+            shift_t = SRType.SRType_RRX
+            shift_n = 1
+        else:
+            shift_t = SRType.SRType_ROR
+            shift_n = imm5.unsigned
+    else:
+        raise ValueError("unknown type value %s" % type)
+    return shift_t, shift_n
 
 
 

@@ -235,13 +235,19 @@ class Decoder(object):
                 match |= f << i+offset
                 i += 1
             elif type(f) is tuple:
+                name, value = f
+                if isinstance(value, bitstring):
+                    mask |= value.mask << i+offset
+                    match |= value.unsigned << i+offset
+                    size = value.width
+                else:
+                    size = value
                 # Put a lambda to extract this named field from the instruction word into the d dict.
-                name, size = f
                 d[name] = lambda b,i=i+offset,size=size: bitstring(b >> i, size)
                 i += size
             else:
                 raise ValueError("unexpected format element in spec: %s" % f)
-        assert i == 16, "format was not exactly 16 bits"
+        assert i == 16, "format was not exactly 16 bits (was %d)" % i
         return mask, match, d
 
 ##
@@ -262,6 +268,9 @@ def instr(mnemonic, klass, spec, spec2=None, **kwargs):
 # bit           => '0' | '1'
 #
 # value         => ident ( '(' intlit ')' )?
+#               => ident '=' bits
+#
+# bits          => bit+         ; terminates on first non-bit char
 #
 # ident         => /[a-zA-Z][a-zA-Z0-9]*/
 #
@@ -273,6 +282,7 @@ def parse_spec(spec):
     state = 0
     ident = ''
     bitcount = ''
+    bits = ''
     expectingBitcount = False
     while i < len(spec):
         c = spec[i]
@@ -301,6 +311,9 @@ def parse_spec(spec):
         elif state == 1:
             if c == '(':
                 state = 2
+            elif c == '=':
+                bits = ''
+                state = 5
             elif c not in string.ascii_letters + string.digits:
                 # Switch to default state and back up.
                 state = 0
@@ -342,13 +355,25 @@ def parse_spec(spec):
                 pass
             else:
                 raise ValueError("unexpected character '%s' at position %d" % (c, i))
+        # Fixed value state.
+        elif state == 5:
+            if c in ('0', '1'):
+                bits += c
+            else:
+                result.append((ident, bitstring(bits)))
+                bits = ''
+                ident = ''
+                state = 0
 
         i += 1
 
     if ident:
-        if not bitcount:
-            bitcount = '1'
-        result.append((ident, int(bitcount)))
+        if bits:
+            result.append((ident, bitstring(bits)))
+        else:
+            if not bitcount:
+                bitcount = '1'
+            result.append((ident, int(bitcount)))
 
     return result
 

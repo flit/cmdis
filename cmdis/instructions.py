@@ -29,7 +29,7 @@
 
 from .decoder import (Instruction, instr)
 from .bitstring import (bitstring, bit0, bit1)
-from .formatter import (RegisterOperand, ImmediateOperand, LabelOperand)
+from .formatter import (RegisterOperand, ImmediateOperand, LabelOperand, ShiftRotateOperand)
 from .helpers import *
 from collections import namedtuple
 from enum import Enum
@@ -100,7 +100,11 @@ class BitClear(DataProcessing):
 
 class ShiftOp(DataProcessing):
     def _eval(self, cpu):
-        result, carry = Shift_C(cpu.r[self.n], self.type, cpu.r[self.m][0:8].unsigned, cpu.apsr.c)
+        if hasattr(self, 'shift_n'):
+            shift_n = self.shift_n
+        else:
+            shift_n = cpu.r[self.m][0:8].unsigned
+        result, carry = Shift_C(cpu.r[self.n], self.type, shift_n, cpu.apsr.c)
         cpu.r[self.d] = result
         self._set_flags(cpu, result, carry, None)
         super(ShiftOp, self)._eval(cpu)
@@ -121,7 +125,6 @@ def adc(i, Rm, Rdn):
     i.m = Rm.unsigned
     i.setflags = SetFlags.NotInITBlock
 #     shift_t, shift_n = SRType_LSL, 0
-
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
 
 @instr("adds", AddSub, "000 11 1 0 imm3(3) Rn(3) Rd(3)")
@@ -131,7 +134,6 @@ def add_imm_t1(i, imm3, Rn, Rd):
     i.n = Rn.unsigned
     i.setflags = SetFlags.NotInITBlock
     i.imm32 = imm3.zero_extend(32)
-
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), ImmediateOperand(i.imm32)]
 
 @instr("adds", AddSub, "001 10 Rdn(3) imm8(8)")
@@ -141,7 +143,6 @@ def add_imm_t2(i, Rdn, imm8):
     i.n = Rdn.unsigned
     i.setflags = SetFlags.NotInITBlock
     i.imm32 = imm8.zero_extend(32)
-
     i.operands = [RegisterOperand(i.d), ImmediateOperand(i.imm32)]
 
 @instr("adds", AddSub, "000 11 0 0 Rm(3) Rn(3) Rd(3)")
@@ -177,6 +178,50 @@ def add_sp_plus_imm_t2(i, imm7):
     i.n = 13
     i.imm32 = (imm7 % '00').zero_extend(32)
     i.operands = [RegisterOperand(13), ImmediateOperand(i.imm32.unsigned)]
+
+@instr("lsls", ShiftOp, "000 stype=00 imm5(5) Rm(3) Rd(3)", type=SRType.SRType_LSL)
+@instr("lsrs", ShiftOp, "000 stype=01 imm5(5) Rm(3) Rd(3)", type=SRType.SRType_LSR)
+@instr("asrs", ShiftOp, "000 stype=10 imm5(5) Rm(3) Rd(3)", type=SRType.SRType_ASR)
+def shift_imm_t1(i, stype, imm5, Rm, Rd):
+    i.d = Rd.unsigned
+    i.n = Rm.unsigned
+    _, i.shift_n = DecodeImmShift(stype, imm5)
+    i.setflags = SetFlags.NotInITBlock
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), ImmediateOperand(i.shift_n)]
+
+# ------------------------------ Sign/unsigned extend instructions ------------------------------
+
+class Extend(DataProcessing):
+    def _eval(self, cpu):
+        rotated = ROR(cpu.r[self.m], self.rotation)[0:self.width]
+        if self.signed:
+            result = rotated.sign_extend(32)
+        else:
+            result = rotated.zero_extend(32)
+        cpu.r[self.d] = result
+        cpu.pc = cpu.pc.unsigned + self.size
+
+@instr("sxth", Extend, "1011 0010 00 Rm(3) Rd(3)", width=16, signed=True)
+@instr("sxtb", Extend, "1011 0010 01 Rm(3) Rd(3)", width=8, signed=True)
+@instr("uxth", Extend, "1011 0010 10 Rm(3) Rd(3)", width=16, signed=False)
+@instr("uxtb", Extend, "1011 0010 11 Rm(3) Rd(3)", width=8, signed=False)
+def extend(i, Rm, Rd):
+    i.m = Rm.unsigned
+    i.d = Rd.unsigned
+    i.rotation = 0
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
+
+@instr("sxth.w", Extend, "11111 010 0 000 1111", "1111 Rd(4) 1 0 rotate(2) Rm(4)", width=16, signed=True)
+@instr("sxtb.w", Extend, "11111 010 0 100 1111", "1111 Rd(4) 1 0 rotate(2) Rm(4)", width=8, signed=True)
+@instr("uxth.w", Extend, "11111 010 0 001 1111", "1111 Rd(4) 1 0 rotate(2) Rm(4)", width=16, signed=False)
+@instr("uxtb.w", Extend, "11111 010 0 101 1111", "1111 Rd(4) 1 0 rotate(2) Rm(4)", width=8, signed=False)
+def extend2(i, Rm, rotate, Rd):
+    i.m = Rm.unsigned
+    i.d = Rd.unsigned
+    i.rotation = (0, 8, 16, 24)[rotate.unsigned]
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
+    if i.rotation != 0:
+        i.operands.append(ShiftRotateOperand(SRType.SRType_ROR, i.rotation))
 
 # ------------------------------ Branch instructions ------------------------------
 

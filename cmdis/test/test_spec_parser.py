@@ -28,6 +28,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from ..decoder import parse_spec
+from ..bitstring import bitstring
 
 class TestParser:
     def test_a(self):
@@ -73,4 +74,20 @@ class TestParser:
     def test_k(self):
         r = parse_spec(' Q( ) imm12 ( 12 ) S  ')
         assert r == [('Q', 1), ('imm12', 12), ('S', 1)]
+
+    def test_l(self):
+        r = parse_spec('0001 foo=0100 imm8(8)')
+        assert r == [0, 0, 0, 1, ('foo', bitstring('0100')), ('imm8', 8)]
+
+    def test_m(self):
+        r = parse_spec('0001 foo=0 imm8(8)')
+        assert r == [0, 0, 0, 1, ('foo', bitstring('0')), ('imm8', 8)]
+
+    def test_n(self):
+        r = parse_spec('0001 foo=1 imm8(8)')
+        assert r == [0, 0, 0, 1, ('foo', bitstring('1')), ('imm8', 8)]
+
+    def test_o(self):
+        r = parse_spec('0001 foo=1 imm8(8) baz=100')
+        assert r == [0, 0, 0, 1, ('foo', bitstring('1')), ('imm8', 8), ('baz', bitstring('100'))]
 

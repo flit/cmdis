@@ -115,3 +115,26 @@ class TestRRX:
     def test_3(self):
         assert RRX_C(bitstring('0110'), bit0) == ('0011', '0')
 
+class TestDecodeImmShift:
+    def test_lsl(self):
+        assert DecodeImmShift(bitstring('00'), bitstring('00000')) == (SRType.SRType_LSL, 0)
+        assert DecodeImmShift(bitstring('00'), bitstring('00001')) == (SRType.SRType_LSL, 1)
+        assert DecodeImmShift(bitstring('00'), bitstring('11111')) == (SRType.SRType_LSL, 31)
+
+    def test_lsr(self):
+        assert DecodeImmShift(bitstring('01'), bitstring('00000')) == (SRType.SRType_LSR, 32)
+        assert DecodeImmShift(bitstring('01'), bitstring('00001')) == (SRType.SRType_LSR, 1)
+        assert DecodeImmShift(bitstring('01'), bitstring('11111')) == (SRType.SRType_LSR, 31)
+
+    def test_asr(self):
+        assert DecodeImmShift(bitstring('10'), bitstring('00000')) == (SRType.SRType_ASR, 32)
+        assert DecodeImmShift(bitstring('10'), bitstring('00001')) == (SRType.SRType_ASR, 1)
+        assert DecodeImmShift(bitstring('10'), bitstring('11111')) == (SRType.SRType_ASR, 31)
+
+    def test_rrx(self):
+        assert DecodeImmShift(bitstring('11'), bitstring('00000')) == (SRType.SRType_RRX, 1)
+
+    def test_ror(self):
+        assert DecodeImmShift(bitstring('11'), bitstring('00001')) == (SRType.SRType_ROR, 1)
+        assert DecodeImmShift(bitstring('11'), bitstring('11111')) == (SRType.SRType_ROR, 31)
+

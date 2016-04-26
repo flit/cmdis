@@ -29,6 +29,7 @@
 
 from .utilities import bytes_to_le16
 from .registers import CORE_REGISTER_NAMES
+from .helpers import SRType
 
 class Operand(object):
     def format(self, formatter):
@@ -65,6 +66,23 @@ class LabelOperand(Operand):
 
         return ".%+d" % self._offset
 
+class ShiftRotateOperand(Operand):
+    OP_NAMES = ["None",
+                "LSL",
+                "LSR",
+                "ASR",
+                "ROR",
+                "RRX",]
+
+    def __init__(self, type, amount):
+        self._type = type
+        self._amount = amount
+
+    def format(self, formatter):
+        if self._type == SRType.SRType_None:
+            return None
+        return "%s #%d" % (self.OP_NAMES[self._type.value], self._amount)
+
 class Formatter(object):
     def __init__(self, cpu):
         self.instruction = None
@@ -86,7 +104,9 @@ class Formatter(object):
 
         formattedOperands = []
         for o in self.instruction.operands:
-            formattedOperands.append(o.format(self))
+            formatted = o.format(self)
+            if formatted is not None:
+                formattedOperands.append(formatted)
 
         result += ", ".join(formattedOperands)
 
