@@ -65,3 +65,53 @@ class TestAddWithCarry:
 #         x = bitstring()
         pass
 
+class TestLSL:
+    def test_0(self):
+        assert LSL_C(bitstring('1001'), 1) == ('0010', '1')
+
+    def test_1(self):
+        assert LSL_C(bitstring('0001'), 1) == ('0010', '0')
+
+class TestLSR:
+    def test_0(self):
+        assert LSR_C(bitstring('1001'), 1) == ('0100', '1')
+
+    def test_1(self):
+        assert LSR_C(bitstring('0100'), 1) == ('0010', '0')
+
+class TestASR:
+    def test_0(self):
+        assert ASR_C(bitstring('1001000'), 1) == ('1100100', '0')
+
+    def test_1(self):
+        assert ASR_C(bitstring('0100000'), 1) == ('0010000', '0')
+
+    def test_2(self):
+        assert ASR_C(bitstring('0100001'), 1) == ('0010000', '1')
+
+    def test_3(self):
+        assert ASR_C(bitstring('1001001'), 1) == ('1100100', '1')
+
+    def test_4(self):
+        assert ASR_C(bitstring('1001001'), 4) == ('1111100', '1')
+
+class TestROR:
+    def test_0(self):
+        assert ROR_C(bitstring('1001'), 1) == ('1100', '1')
+
+    def test_1(self):
+        assert ROR_C(bitstring('0100'), 1) == ('0010', '0')
+
+class TestRRX:
+    def test_0(self):
+        assert RRX_C(bitstring('1001'), bit0) == ('0100', '1')
+
+    def test_1(self):
+        assert RRX_C(bitstring('0100'), bit1) == ('1010', '0')
+
+    def test_2(self):
+        assert RRX_C(bitstring('0111'), bit1) == ('1011', '1')
+
+    def test_3(self):
+        assert RRX_C(bitstring('0110'), bit0) == ('0011', '0')
+

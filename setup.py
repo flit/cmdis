@@ -43,7 +43,7 @@ setup(
     author_email="chris.reed@nxp.com",
     url='https://github.com/flit/cmdis',
     license="BSD 3-Clause",
-    install_requires=[],
+    install_requires=["enum34"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "License :: OSI Approved :: BSD License",
@@ -51,5 +51,4 @@ setup(
     ],
     use_2to3=True,
     packages=find_packages(),
-#     include_package_data=True,  # include files from MANIFEST.in
 )
