@@ -219,16 +219,16 @@ class TestBitstring:
         assert b == '10100011'
 
     def test_lshift(self):
-        assert bitstring('1100') << 4 == '11000000'
-        b = bitstring('1010')
+        assert bitstring('1100') << 4 == '0000'
+        b = bitstring('1011')
         b <<= 3
-        assert b == '1010000'
+        assert b == '1000'
 
     def test_rshift(self):
-        assert bitstring('110011') >> 2 == '1100'
+        assert bitstring('110011') >> 2 == '001100'
         b = bitstring('10101011')
         b >>= 4
-        assert b == '1010'
+        assert b == '00001010'
 
     def test_and(self):
         assert bitstring('0') & bitstring('0') == '0'
@@ -288,5 +288,19 @@ class TestBitstring:
         b = bitstring('1000')
         b //= 4
         assert b == '0010'
+
+    def test_getitem(self):
+        x = bitstring('11001')
+        assert x[0] == '1'
+        assert x[1] == '0'
+        assert x[2] == '0'
+        assert x[-1] == '1'
+        assert x[-2] == '1'
+
+    def test_slice(self):
+        x = bitstring('11001')
+        assert x[0:1] == '1'
+        assert x[0:x.width] == '11001'
+        assert x[2:5] == '110'
 
 

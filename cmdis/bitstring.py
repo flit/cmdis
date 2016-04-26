@@ -208,7 +208,7 @@ class bitstring(object):
             i = start
             result = bitstring()
             while (i < stop) if (step > 0) else (i > stop):
-                result = self.get_bit(i) + result
+                result = self.get_bit(i) % result
                 i += step
             return result
         elif isinstance(key, six.integer_types):
@@ -300,7 +300,7 @@ class bitstring(object):
 
     def __lshift__(self, other):
         if isinstance(other, six.integer_types):
-            w = self._width + other
+            w = self._width
             v = self._value << other
             return bitstring(v, w)
         else:
@@ -308,9 +308,7 @@ class bitstring(object):
 
     def __rshift__(self, other):
         if isinstance(other, six.integer_types):
-            if self._width - other < 0:
-                return bitstring()
-            w = self._width - other
+            w = self._width
             v = self._value >> other
             return bitstring(v, w)
         else:
