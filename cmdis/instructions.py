@@ -30,67 +30,130 @@
 from .decoder import (Instruction, instr)
 from .bitstring import (bitstring, bit0, bit1)
 from .formatter import (RegisterOperand, ImmediateOperand, LabelOperand)
-from . import helpers
+from .helpers import *
 from collections import namedtuple
+from enum import Enum
+import operator
 
-# ------------------------------ Add instructions ------------------------------
+class SetFlags(Enum):
+    Always = 1
+    Never = 2
+    NotInITBlock = 3
 
-class Add(Instruction):
-    def __init__(self, mnemonic, word, is32bit, attrs=None):
-        super(Add, self).__init__(mnemonic, word, is32bit, attrs)
-        self.add_carry = False
-        self.setflags = False
+# ------------------------------ Data processing instructions ------------------------------
 
-    def _eval(self, cpu):
-        result, carry, overflow = helpers.AddWithCarry(cpu.r[self.n],
-            self.imm32 if hasattr(self, 'imm32') else cpu.r[self.m],
-            cpu.apsr.c if self.add_carry else bit0)
-        cpu.r[self.d] = result
-        if self.setflags:
+class DataProcessing(Instruction):
+    def __init__(self, mnemonic, word, is32bit):
+        super(DataProcessing, self).__init__(mnemonic, word, is32bit)
+        self.setflags = SetFlags.Never
+
+    def _set_flags(self, cpu, result, carry, overflow):
+        if self.setflags == SetFlags.Always:
+            setflags = True
+        elif self.setflags == SetFlags.Never:
+            setflags = False
+        elif self.setflags == SetFlags.NotInITBlock:
+            setflags = not cpu.in_it_block
+
+        if setflags:
             cpu.apsr.n = result[31]
             cpu.apsr.z = result.is_zero_bit()
             cpu.apsr.c = carry
-            cpu.apsr.v = overflow
+            if overflow is not None:
+                cpu.apsr.v = overflow
+
+    def _eval(self, cpu):
         cpu.pc = cpu.pc.unsigned + self.size
 
-@instr("adcs", Add, "010000 0101 Rm(3) Rdn(3)")
+class AddSub(DataProcessing):
+    def __init__(self, mnemonic, word, is32bit):
+        super(AddSub, self).__init__(mnemonic, word, is32bit)
+        self.use_carry = False
+        self.sub = False
+
+    def _eval(self, cpu):
+        if self.sub:
+            result, carry, overflow = AddWithCarry(cpu.r[self.n],
+                ~(self.imm32 if hasattr(self, 'imm32') else cpu.r[self.m]),
+                cpu.apsr.c if self.use_carry else bit1)
+        else:
+            result, carry, overflow = AddWithCarry(cpu.r[self.n],
+                self.imm32 if hasattr(self, 'imm32') else cpu.r[self.m],
+                cpu.apsr.c if self.use_carry else bit0)
+        cpu.r[self.d] = result
+        self._set_flags(cpu, result, carry, overflow)
+        super(AddSub, self)._eval(cpu)
+
+class BitOp(DataProcessing):
+    def _eval(self, cpu):
+        result = self.op(cpu.r[self.n], cpu.r[self.m])
+        cpu.r[self.d] = result
+        self._set_flags(cpu, result, cpu.apsr.c, None)
+        super(BitOp, self)._eval(cpu)
+
+class BitClear(DataProcessing):
+    def _eval(self, cpu):
+        result = cpu.r[self.n] & ~cpu.r[self.m]
+        cpu.r[self.d] = result
+        self._set_flags(cpu, result, cpu.apsr.c, None)
+        super(BitClear, self)._eval(cpu)
+
+class ShiftOp(DataProcessing):
+    def _eval(self, cpu):
+        result, carry = Shift_C(cpu.r[self.n], self.type, cpu.r[self.m][0:8].unsigned, cpu.apsr.c)
+        cpu.r[self.d] = result
+        self._set_flags(cpu, result, carry, None)
+        super(ShiftOp, self)._eval(cpu)
+
+@instr("ands", BitOp,        "010000 0000 Rm(3) Rdn(3)", op=operator.and_)
+@instr("eors", BitOp,        "010000 0001 Rm(3) Rdn(3)", op=operator.xor)
+@instr("lsls", ShiftOp,      "010000 0010 Rm(3) Rdn(3)", type=SRType.SRType_LSL)
+@instr("lsrs", ShiftOp,      "010000 0011 Rm(3) Rdn(3)", type=SRType.SRType_LSR)
+@instr("asrs", ShiftOp,      "010000 0100 Rm(3) Rdn(3)", type=SRType.SRType_ASR)
+@instr("adcs", AddSub,       "010000 0101 Rm(3) Rdn(3)", use_carry=True)
+@instr("sbcs", AddSub,       "010000 0110 Rm(3) Rdn(3)", sub=True, use_carry=True)
+@instr("rors", ShiftOp,      "010000 0111 Rm(3) Rdn(3)", type=SRType.SRType_ROR)
+@instr("orrs", BitOp,        "010000 1100 Rm(3) Rdn(3)", op=operator.or_)
+@instr("bics", BitClear,     "010000 1110 Rm(3) Rdn(3)")
 def adc(i, Rm, Rdn):
     i.d = Rdn.unsigned
     i.n = Rdn.unsigned
     i.m = Rm.unsigned
-    i.setflags = True #!InITBlock()
-    i.add_carry = True
+    i.setflags = SetFlags.NotInITBlock
 #     shift_t, shift_n = SRType_LSL, 0
 
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
 
-@instr("adds", Add, "000 11 1 0 imm3(3) Rn(3) Rd(3)")
+@instr("adds", AddSub, "000 11 1 0 imm3(3) Rn(3) Rd(3)")
+@instr("subs", AddSub, "000 11 1 1 imm3(3) Rn(3) Rd(3)", sub=True)
 def add_imm_t1(i, imm3, Rn, Rd):
     i.d = Rd.unsigned
     i.n = Rn.unsigned
-    i.setflags = True #!InITBlock()
+    i.setflags = SetFlags.NotInITBlock
     i.imm32 = imm3.zero_extend(32)
 
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), ImmediateOperand(i.imm32)]
 
-@instr("adds", Add, "001 10 Rdn(3) imm8(8)")
+@instr("adds", AddSub, "001 10 Rdn(3) imm8(8)")
+@instr("subs", AddSub, "001 11 Rdn(3) imm8(8)", sub=True)
 def add_imm_t2(i, Rdn, imm8):
     i.d = Rdn.unsigned
     i.n = Rdn.unsigned
-    i.setflags = True #!InITBlock()
+    i.setflags = SetFlags.NotInITBlock
     i.imm32 = imm8.zero_extend(32)
 
     i.operands = [RegisterOperand(i.d), ImmediateOperand(i.imm32)]
 
-@instr("adds", Add, "000 11 0 0 Rm(3) Rn(3) Rd(3)")
+@instr("adds", AddSub, "000 11 0 0 Rm(3) Rn(3) Rd(3)")
+@instr("subs", AddSub, "000 11 0 1 Rm(3) Rn(3) Rd(3)", sub=True)
 def add_reg_t1(i, Rm, Rn, Rd):
     i.d = Rd.unsigned
     i.n = Rn.unsigned
     i.m = Rm.unsigned
-    i.setflags = True #!InITBlock()
+    i.setflags = SetFlags.NotInITBlock
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), RegisterOperand(i.m)]
 
-@instr("add", Add, "010001 00 DN Rm(4) Rdn(3)")
+@instr("add", AddSub, "010001 00 DN Rm(4) Rdn(3)")
 def add_reg_t2(i, DN, Rm, Rdn):
     # if (DN:Rdn) == '1101' || Rm == '1101' then SEE ADD (SP plus register);
     i.d = (DN % Rdn).unsigned
@@ -98,22 +161,20 @@ def add_reg_t2(i, DN, Rm, Rdn):
     i.m = Rm.unsigned
     # if n == 15 && m == 15 then UNPREDICTABLE;
     # if d == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE;
-    i.setflags = False #!InITBlock()
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
 
-@instr("add", Add, "1010 1 Rd(3) imm8(8)")
+@instr("add", AddSub, "1010 1 Rd(3) imm8(8)")
 def add_sp_plus_imm_t1(i, Rd, imm8):
     i.d = Rd.unsigned
     i.n = 13
-    i.setflags = False
     i.imm32 = (imm8 % '00').zero_extend(32)
     i.operands = [RegisterOperand(i.d), RegisterOperand(13), ImmediateOperand(i.imm32.unsigned)]
 
-@instr("add", Add, "1011 0000 0 imm7(7)")
+@instr("add", AddSub, "1011 0000 0 imm7(7)")
+@instr("sub", AddSub, "1011 0000 1 imm7(7)", sub=True)
 def add_sp_plus_imm_t2(i, imm7):
     i.d = 13
     i.n = 13
-    i.setflags = False
     i.imm32 = (imm7 % '00').zero_extend(32)
     i.operands = [RegisterOperand(13), ImmediateOperand(i.imm32.unsigned)]
 
@@ -141,8 +202,8 @@ CONDITIONS = {
     }
 
 class Branch(Instruction):
-    def __init__(self, mnemonic, word, is32bit, attrs=None):
-        super(Branch, self).__init__(mnemonic, word, is32bit, attrs)
+    def __init__(self, mnemonic, word, is32bit):
+        super(Branch, self).__init__(mnemonic, word, is32bit)
         self.with_link = False
         self.cond = CONDITIONS[0b1111]
         self.pc_delta = 0
@@ -196,6 +257,11 @@ def blx_t1(i, Rm):
     # if m == 15 then UNPREDICTABLE;
     i.with_link = True
     i.pc_delta = -2
+    i.operands = [RegisterOperand(i.m)]
+
+@instr("bx", Branch, "010001 11 0 Rm(4) 000")
+def bx_t1(i, Rm):
+    i.m = Rm.unsigned
     i.operands = [RegisterOperand(i.m)]
 
 

@@ -46,6 +46,10 @@ class ImmediateOperand(Operand):
         self._imm = imm
 
     def format(self, formatter):
+        if self._imm > 9:
+            comment = "0x%x" % (self._imm)
+            formatter.add_comment(comment)
+
         return "#%d" % self._imm
 
 class LabelOperand(Operand):
@@ -56,7 +60,7 @@ class LabelOperand(Operand):
         # Add a comment with the absolute address of the label.
         # TODO use instr address instead of pc
         # TODO handle pc + 4
-        comment = "0x%08x" % (formatter.cpu.pc.unsigned + self._offset)
+        comment = "0x%x" % (formatter.cpu.pc.unsigned + self._offset)
         formatter.add_comment(comment)
 
         return ".%+d" % self._offset
@@ -87,7 +91,7 @@ class Formatter(object):
         result += ", ".join(formattedOperands)
 
         if self._comments:
-            result += "    ; " + " ".join(self._comments)
+            result = "{0:<36} ; {1}".format(result, " ".join(self._comments))
 
         self.instruction = None
         return result

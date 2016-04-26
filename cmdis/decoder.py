@@ -34,12 +34,13 @@ from .formatter import Formatter
 import string
 from collections import (defaultdict, namedtuple)
 
+##
+# @brief Base class for a decoded instruction.
 class Instruction(object):
-    def __init__(self, mnemonic, word, is32bit, attrs=None):
+    def __init__(self, mnemonic, word, is32bit):
         self._mnemonic = mnemonic
         self._word = word
         self._is32bit = is32bit
-        self._attrs = attrs
         self._address = 0
         self._operands = []
 
@@ -67,15 +68,20 @@ class Instruction(object):
 
     def __repr__(self):
         i = (" %08x" if self._is32bit else " %04x") % self._word
-        return "<Instruction@0x%x %s %s %s>" % (id(self), self._mnemonic, i, self._attrs)
+        return "<Instruction@0x%x %s %s>" % (id(self), self._mnemonic, i)
 
+# A node of the decoder tree pairs a mask with a dictionary of child nodes. The dict
+# keys are the unique values for the mask. If the mask value is 0, then the node is a
+# leaf node and there is only one child.
 DecoderTreeNode = namedtuple('DecoderTreeNode', 'mask children')
 
+##
+# @brief Exception raised when an instruction cannot be decoded successfully.
 class UndefinedInstructionError(Exception):
     pass
 
 ##
-# @brief
+# @brief Interface for decoding instruction byte sequences.
 #
 # Tree-based instruction decoding algorithm borrowed from Amoco project by Axel Tillequin
 # (bdcht3@gmail.com) and re-written.
@@ -87,7 +93,7 @@ class DecoderTree(object):
     def __init__(self):
         self._decoders16 = []
         self._decoders32 = []
-        self._tree16 = None #self._build_tree()
+        self._tree16 = None
         self._tree32 = None
 
     def add_decoder(self, decoder):
@@ -101,6 +107,8 @@ class DecoderTree(object):
         self._tree32 = self._build_tree(self._decoders32)
 
     def decode(self, data, dataAddress=None):
+        # Figure out if this is a 16-bit or 32-bit instruction and select the
+        # appropriate decoder tree.
         assert len(data) >= 2
         hw1 = bytes_to_le16(data)
         is32bit = hw1 & self._32bitMask in self._32bitPrefixes
@@ -172,6 +180,8 @@ class DecoderTree(object):
 
 DECODER_TREE = DecoderTree()
 
+##
+# @brief
 class Decoder(object):
     def __init__(self, handler, mnemonic, klass, spec, spec2=None, **kwargs):
         self._handler = handler
@@ -200,7 +210,12 @@ class Decoder(object):
         for n,f in self._attrs.iteritems():
             attrs[n] = f(word)
 
-        i = self._klass(self._mnemonic, word, self.is32bit, attrs)
+        # Create instruction object.
+        i = self._klass(self._mnemonic, word, self.is32bit)
+        for k, v in self.args.iteritems():
+            setattr(i, k, v)
+
+        # Call handler to further decode instruction.
         self._handler(i, **attrs)
 
         return i

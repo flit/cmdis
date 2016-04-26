@@ -125,6 +125,10 @@ class CpuModel(object):
             i.execute(self)
 
     @property
+    def in_it_block(self):
+        return False
+
+    @property
     def pc(self):
         return self.read_register('pc')
 #         return bitstring(self.read_register('pc').unsigned + 4)
