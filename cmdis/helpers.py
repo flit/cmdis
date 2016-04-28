@@ -152,5 +152,29 @@ def DecodeImmShift(type, imm5):
         raise ValueError("unknown type value %s" % type)
     return shift_t, shift_n
 
+# @param carry_in Either passed through unchanged or not used. Does not affect result imm32.
+def ThumbExpandImm_C(imm12, carry_in):
+    if imm12[10:12] == '00':
+        imm12_8 = imm12[8:10]
+        imm12_0 = imm12[0:8]
+        if imm12_8 == '00':
+            imm32 = imm12_0.zero_extend(32)
+        elif imm12_8 == '01':
+            imm32 = bitstring('00000000') % imm12_0 % bitstring('00000000') % imm12_0
+        elif imm12_8 == '10':
+            imm32 = imm12_0 % bitstring('00000000') % imm12_0 % bitstring('00000000')
+        elif imm12_8 == '11':
+            imm32 = imm12_0 % imm12_0 % imm12_0 % imm12_0
+        carry_out = carry_in
+    else:
+        unrotated_value = (bit1 % imm12[0:7]).zero_extend(32)
+        imm32, carry_out = ROR_C(unrotated_value, imm12[7:12].unsigned)
+    return imm32, carry_out
+
+def ThumbExpandImm(imm12):
+    # Carry in param to this call is ignored.
+    imm32, _ = ThumbExpandImm_C(imm12, bit0)
+    return imm32
+
 
 

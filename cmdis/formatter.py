@@ -83,6 +83,16 @@ class ShiftRotateOperand(Operand):
             return None
         return "%s #%d" % (self.OP_NAMES[self._type.value], self._amount)
 
+class BarrierOperand(Operand):
+    def __init__(self, option):
+        self._option = option
+
+    def format(self, formatter):
+        if self._option == 0b1111:
+            return "sy"
+        else:
+            return "#%d" % self._option
+
 class Formatter(object):
     def __init__(self, cpu):
         self.instruction = None

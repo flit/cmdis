@@ -42,7 +42,7 @@ class Instruction(object):
         self._word = word
         self._is32bit = is32bit
         self._address = 0
-        self._operands = []
+        self.operands = []
 
     @property
     def mnemonic(self):
@@ -130,8 +130,12 @@ class DecoderTree(object):
                     # Couldn't find a matching instruction.
                     raise UndefinedInstructionError()
             else:
-                assert len(node.children) == 1
-                return node.children[0].decode(word)
+                for d in node.children:
+                    if d.check(word):
+                        return d.decode(word)
+
+                # None of the decoders matched.
+                raise UndefinedInstructionError()
 
     def _build_tree(self, decoders):
         # Sort decoders in descending order of number of bits set in the mask.
@@ -151,9 +155,11 @@ class DecoderTree(object):
         children = defaultdict(list)
         for decoder in decoders:
             children[decoder._match & commonMask].append(decoder)
-        assert len(children) != 1
+
+        # If there is only one element in the children dict, then all decoders at this
+        # level have the same value under the common mask.
         if len(children) == 1:
-            return DecoderTreeNode(mask=0, children=children.values())
+            return DecoderTreeNode(mask=0, children=children.values()[0])
 
         # Recursively process each group of children with the same match value at this level.
         for k, subdecoders in children.iteritems():
@@ -205,7 +211,11 @@ class Decoder(object):
         else:
             self.is32bit = False
 
+    def check(self, word):
+        return (word & self._mask) == self._match
+
     def decode(self, word):
+        # Read bitfields from the instruction.
         attrs = {}
         for n,f in self._attrs.iteritems():
             attrs[n] = f(word)

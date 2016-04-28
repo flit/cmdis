@@ -29,7 +29,8 @@
 
 from .decoder import (Instruction, instr)
 from .bitstring import (bitstring, bit0, bit1)
-from .formatter import (RegisterOperand, ImmediateOperand, LabelOperand, ShiftRotateOperand)
+from .formatter import (RegisterOperand, ImmediateOperand, LabelOperand,
+                        ShiftRotateOperand, BarrierOperand)
 from .helpers import *
 from collections import namedtuple
 from enum import Enum
@@ -156,12 +157,9 @@ def add_reg_t1(i, Rm, Rn, Rd):
 
 @instr("add", AddSub, "010001 00 DN Rm(4) Rdn(3)")
 def add_reg_t2(i, DN, Rm, Rdn):
-    # if (DN:Rdn) == '1101' || Rm == '1101' then SEE ADD (SP plus register);
     i.d = (DN % Rdn).unsigned
     i.n = i.d
     i.m = Rm.unsigned
-    # if n == 15 && m == 15 then UNPREDICTABLE;
-    # if d == 15 && InITBlock() && !LastInITBlock() then UNPREDICTABLE;
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
 
 @instr("add", AddSub, "1010 1 Rd(3) imm8(8)")
@@ -223,6 +221,151 @@ def extend2(i, Rm, rotate, Rd):
     if i.rotation != 0:
         i.operands.append(ShiftRotateOperand(SRType.SRType_ROR, i.rotation))
 
+# ------------------------------ Move instructions ------------------------------
+
+class Move(DataProcessing):
+    def __init__(self, mnemonic, word, is32bit):
+        super(Move, self).__init__(mnemonic, word, is32bit)
+        self.negate = False
+
+    def _eval(self, cpu):
+        if hasattr(self, 'm'):
+            result = cpu.r[self.m]
+            if self.m == 15: # pc
+                self.setflags = SetFlags.Never
+        else:
+            result = self.imm32
+        if self.negate:
+            result = ~result
+        cpu.r[self.d] = result
+        self._set_flags(cpu, result, cpu.apsr.c, None)
+        cpu.pc = cpu.pc.unsigned + self.size
+
+@instr("mov", Move, "010001 10 D Rm(4) Rd(3)")
+def mov0(i, D, Rm, Rd):
+    i.m = Rm.unsigned
+    i.d = (D % Rd).unsigned
+    i.setflags = SetFlags.Never
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
+
+@instr("movs", Move, "000 00 00000 Rm(3) Rd(3)")
+def mov0(i, Rm, Rd):
+    i.m = Rm.unsigned
+    i.d = Rd.unsigned
+    i.setflags = SetFlags.Always
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
+
+@instr("mov", Move, "11101 01 0010 S 1111", "0 000 Rd(4) 0000 Rm(4)")
+def mov_reg_t3(i, S, Rd, Rm):
+    i._mnemonic += "s.w" if S else ".w"
+    i.d = Rd.unsigned
+    i.m = Rm.unsigned
+    i.setflags = (SetFlags.Never, SetFlags.Always)[S.unsigned]
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
+
+@instr("movs", Move, "001 00 Rd(3) imm8(8)")
+def mov1(i, Rd, imm8):
+    i.d = Rd.unsigned
+    i.setflags = SetFlags.NotInITBlock
+    i.imm32 = imm8.zero_extend(32)
+    i.operands = [RegisterOperand(i.d), ImmediateOperand(i.imm32.unsigned)]
+
+# TODO test
+@instr("mov", Move, "11110 im 0 0010 S 1111", "0 imm3(3) Rd(4) imm8(8)")
+def mov2(i, im, S, imm3, Rd, imm8):
+    i._mnemonic += "s.w" if S else ".w"
+    i.d = Rd.unsigned
+    i.setflags = (SetFlags.Never, SetFlags.Always)[S.unsigned]
+    i.imm32, i.carry = ThumbExpandImm_C(im % imm3 % imm8, bit0) # TODO deal with carry_in
+    i.operands = [RegisterOperand(i.d), ImmediateOperand(i.imm32.unsigned)]
+
+# TODO test
+@instr("movw", Move, "11110 im 10 0 1 0 0 imm4(4)", "0 imm3(3) Rd(4) imm8(8)")
+def movw(i, im, imm4, imm3, Rd, imm8):
+    i.d = Rd.unsigned
+    i.setflags = SetFlags.Never
+    i.imm32 = (imm4 % im % imm3 % imm8).zero_extend(32)
+    i.operands = [RegisterOperand(i.d), ImmediateOperand(i.imm32.unsigned)]
+
+# TODO test
+@instr("mvns", Move, "010000 1111 Rm(3) Rd(3)", negate=True)
+def mvn(i, Rm, Rd):
+    i.d = Rd.unsigned
+    i.m = Rm.unsigned
+    i.setflags = SetFlags.NotInITBlock
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
+
+class ShiftedMoveNegate(DataProcessing):
+    def _eval(self, cpu):
+        shifted, carry = Shift_C(cpu.r[i.m], i.shift_t, i.shift_n, cpu.apsr.c)
+        result = ~shifted
+        cpu.r[self.d] = result
+        self._set_flags(cpu, result, carry, None)
+        cpu.pc = cpu.pc.unsigned + self.size
+
+# TODO test
+@instr("mvn", ShiftedMoveNegate, "11101 01 0011 S 1111", "0 imm3(3) Rd(4) imm2(2) type(2) Rm(4)")
+def mvnw(i, S, imm3, Rd, imm2, type, Rm):
+    i._mnemonic += "s.w" if S else ".w"
+    i.d = Rd.unsigned
+    i.m = Rm.unsigned
+    i.setflags = (SetFlags.Never, SetFlags.Always)[S.unsigned]
+    i.shift_t, i.shift_n = DecodeImmShift(type, imm3 % imm2)
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.m), ShiftRotateOperand(i.shift_t, i.shift_n)]
+
+# ------------------------------ Compare instructions ------------------------------
+
+class Compare(Instruction):
+    def __init__(self, mnemonic, word, is32bit):
+        super(Compare, self).__init__(mnemonic, word, is32bit)
+        self.negate = True
+
+    def _eval(self, cpu):
+        if hasattr(self, 'm'):
+            shifted = cpu.r[self.m]
+        else:
+            shifted = self.imm32
+        if self.negate:
+            shifted = ~shifted
+            carry_in = bit1
+        else:
+            carry_in = bit0
+        result, carry, overflow = AddWithCarry(cpu.r[self.n], shifted, carry_in)
+        cpu.apsr.n = result[31]
+        cpu.apsr.z = result.is_zero_bit()
+        cpu.apsr.c = carry
+        cpu.apsr.v = overflow
+        cpu.pc = cpu.pc.unsigned + self.size
+
+@instr("cmp", Compare, "001 01 Rn(3) imm8(8)")
+def cmp1(i, Rn, imm8):
+    i.n = Rn.unsigned
+    i.imm32 = imm8.zero_extend(32)
+    i.operands = [RegisterOperand(i.n), ImmediateOperand(i.imm32.unsigned)]
+
+# TODO test
+@instr("cmp", Compare, "010000 1010 Rm(3) Rn(3)")
+@instr("cmn", Compare, "010000 1011 Rm(3) Rn(3)", negate=False)
+def cmp3(i, N, Rm, Rn):
+    i.n = Rn.unsigned
+    i.m = Rn.unsigned
+    i.operands = [RegisterOperand(i.n), RegisterOperand(i.m)]
+
+# TODO test
+@instr("cmp", Compare, "010001 01 N Rm(4) Rn(3)")
+def cmp4(i, N, Rm, Rn):
+    i.n = (N % Rn).unsigned
+    i.m = Rn.unsigned
+    i.operands = [RegisterOperand(i.n), RegisterOperand(i.m)]
+
+# TODO test
+@instr("cmp.w", Compare, "11110 im 0 1101 1 Rn(4)", "0 imm3(3) 1111 imm8(8)")
+@instr("cmn", Compare,   "11110 im 0 1000 1 Rn(4)", "0 imm3(3) 1111 imm8(8)", negate=False)
+def cmp2(i, im, imm3, imm8):
+    i.n = Rn.unsigned
+    i.imm32 = ThumbExpandImm(im % imm3 % imm8)
+    i.operands = [RegisterOperand(i.n), ImmediateOperand(i.imm32.unsigned)]
+
 # ------------------------------ Branch instructions ------------------------------
 
 ConditionInfo = namedtuple('ConditionInfo', 'mnemonic expr')
@@ -275,8 +418,6 @@ class Branch(Instruction):
 
 @instr("b", Branch, "1101 cond(4) imm8(8)")
 def b_t1(i, cond, imm8):
-    # if cond == '1110' then UNDEFINED;
-    # if cond == '1111' then SEE SVC;
     i.cond = CONDITIONS[cond.unsigned]
     i._mnemonic = 'b' + CONDITIONS[cond.unsigned].mnemonic
     i.imm32 = (imm8 % '0').sign_extend(32)
@@ -309,7 +450,23 @@ def bx_t1(i, Rm):
     i.m = Rm.unsigned
     i.operands = [RegisterOperand(i.m)]
 
+# ------------------------------ Load instructions ------------------------------
 
+# ------------------------------ Nop-compatible hint instructions ------------------------------
 
+@instr("nop", Instruction,      "1011 1111 0000 0000")
+@instr("yield", Instruction,    "1011 1111 0001 0000")
+@instr("wfe", Instruction,      "1011 1111 0010 0000")
+@instr("wfi", Instruction,      "1011 1111 0011 0000")
+@instr("sev", Instruction,      "1011 1111 0100 0000")
+def nop(i):
+    pass
 
+# ------------------------------ Barrier instructions ------------------------------
+
+@instr("dsb", Instruction, "11110 0 111 01 1 1111", "10 0 0 1111 0100 option(4)")
+@instr("dmb", Instruction, "11110 0 111 01 1 1111", "10 0 0 1111 0101 option(4)")
+@instr("isb", Instruction, "11110 0 111 01 1 1111", "10 0 0 1111 0110 option(4)")
+def barrier(i, option):
+    i.operands = [BarrierOperand(option.unsigned)]
 

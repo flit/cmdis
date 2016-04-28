@@ -303,4 +303,12 @@ class TestBitstring:
         assert x[0:x.width] == '11001'
         assert x[2:5] == '110'
 
+    def test_bytes(self):
+        x = bitstring(0x563924)
+        assert x.bytes == bytearray([0x24, 0x39, 0x56, 0x00])
+        x.width = 16
+        assert x.bytes == bytearray([0x24, 0x39])
+        x.width = 5
+        assert x.bytes == bytearray([0x04])
+
 

@@ -58,6 +58,12 @@ class bitstring(object):
             # TODO support iterables of '0','1' as well as ints
             self._width = len(val)
             self._value = reduce(lambda x,y:(x << 1) | y, val)
+        elif isinstance(val, bytearray):
+            # Little endian byte array.
+            self._width = len(val) * 8
+            self._value = 0
+            for i,b in enumerate(val):
+                self._value |= b << (i * 8)
         else:
             raise TypeError("value type is not supported")
 
@@ -114,6 +120,13 @@ class bitstring(object):
         for i in range(self._width):
             s = str((self._value >> i) & 1) + s
         return s
+
+    @property
+    def bytes(self):
+        result = []
+        for i in range((self._width + 7) / 8):
+            result.append((self._value >> (i * 8)) & 0xff)
+        return bytearray(result)
 
     def __repr__(self):
         return "%d'b%s" % (self._width, self.binary_string)

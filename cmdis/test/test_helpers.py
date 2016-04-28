@@ -138,3 +138,7 @@ class TestDecodeImmShift:
         assert DecodeImmShift(bitstring('11'), bitstring('00001')) == (SRType.SRType_ROR, 1)
         assert DecodeImmShift(bitstring('11'), bitstring('11111')) == (SRType.SRType_ROR, 31)
 
+class TestThumbExpandImm:
+    def test_a(self):
+        pass
+
