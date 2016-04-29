@@ -29,15 +29,24 @@
 
 from .model import CpuModelDelegate
 from .registers import CORE_REGISTER
+from .utilities import (bytes_to_le16, bytes_to_le32, le16_to_bytes, le32_to_bytes)
+from collections import namedtuple
+
+MemBuffer = namedtuple('MemBuffer', 'start end data')
 
 class MockCpuModelDelegate(CpuModelDelegate):
     def __init__(self):
-        self._regs = {}
-        for reg in CORE_REGISTER.values():
-            self._regs[reg] = 0
+        self._mem = []
+        self._regs = {reg:0 for reg in CORE_REGISTER.itervalues()}
+#         for reg in CORE_REGISTER.values():
+#             self._regs[reg] = 0
 
         # set T bit in xpsr
         self._regs[16] = 0x01000000
+
+    def add_memory(self, start, length):
+        buf = MemBuffer(start=start, end=start+length-1, data=bytearray(length))
+        self._mem.append(buf)
 
     def read_register(self, reg):
         return self._regs[reg]
@@ -45,15 +54,31 @@ class MockCpuModelDelegate(CpuModelDelegate):
     def write_register(self, reg, value):
         self._regs[reg] = value
 
+    def _find_mem(self, addr):
+        for m in self._mem:
+            if m.start <= addr <= m.end:
+                return m, addr - m.start
+        return None
+
     def read_memory(self, addr, size=32):
-        if size == 8:
-            return 0x12
-        elif size == 16:
-            return 0x1234
-        elif size == 32:
-            return 0x12345678
+        mem, offset = self._find_mem(addr)
+        if mem:
+            if size == 8:
+                return mem.data[offset:offset+1]
+            elif size == 16:
+                return bytes_to_le16(mem.data[offset:offset+2])
+            elif size == 32:
+                return bytes_to_le32(mem.data[offset:offset+4])
+        return 0
 
     def write_memory(self, addr, value, size=32):
-        pass
+        mem, offset = self._find_mem(addr)
+        if mem:
+            if size == 8:
+                mem.data[offset:offset+1] = value
+            elif size == 16:
+                mem.data[offset:offset+2] = le16_to_bytes(value)
+            elif size == 32:
+                mem.data[offset:offset+4] = le32_to_bytes(value)
 
 
