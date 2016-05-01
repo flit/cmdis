@@ -93,6 +93,23 @@ class BarrierOperand(Operand):
         else:
             return "#%d" % self._option
 
+class MemoryAccessOperand(Operand):
+    def __init__(self, *args, **kwargs):
+        self._operands = args
+        self._wback = kwargs.get("wback", False)
+
+    def format(self, formatter):
+        formattedOperands = []
+        for o in self._operands:
+            formatted = o.format(formatter)
+            if formatted is not None:
+                formattedOperands.append(formatted)
+
+        result = "[" + ", ".join(formattedOperands) + "]"
+        if self._wback:
+            result += "!"
+        return result
+
 class Formatter(object):
     def __init__(self, cpu):
         self.instruction = None

@@ -30,6 +30,31 @@
 from ..bitstring import *
 from ..helpers import *
 
+class TestAlign:
+    def test_0(self):
+        assert Align(0x1001, 4) == 0x1000
+
+    def test_1(self):
+        assert Align(0x1003, 4) == 0x1000
+
+    def test_2(self):
+        assert Align(0x1003, 2) == 0x1002
+
+    def test_3(self):
+        assert Align(0x1007, 16) == 0x1000
+
+    def test_4(self):
+        assert Align(bitstring(0x1001), 4) == bitstring(0x1000)
+
+    def test_5(self):
+        assert Align(bitstring(0x1003), 4) == bitstring(0x1000)
+
+    def test_6(self):
+        assert Align(bitstring(0x1003), 2) == bitstring(0x1002)
+
+    def test_7(self):
+        assert Align(bitstring(0x1007), 16) == bitstring(0x1000)
+
 class TestAddWithCarry:
     def test_0(self):
         x = bitstring('00000')

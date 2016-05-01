@@ -27,10 +27,10 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .decoder import (Instruction, instr)
+from .decoder import (Instruction, instr, DecodeError)
 from .bitstring import (bitstring, bit0, bit1)
 from .formatter import (RegisterOperand, ImmediateOperand, LabelOperand,
-                        ShiftRotateOperand, BarrierOperand)
+                        ShiftRotateOperand, BarrierOperand, MemoryAccessOperand)
 from .helpers import *
 from collections import namedtuple
 from enum import Enum
@@ -64,7 +64,7 @@ class DataProcessing(Instruction):
                 cpu.apsr.v = overflow
 
     def _eval(self, cpu):
-        cpu.pc = cpu.pc.unsigned + self.size
+        cpu.pc += self.size
 
 class AddSub(DataProcessing):
     def __init__(self, mnemonic, word, is32bit):
@@ -197,7 +197,7 @@ class Extend(DataProcessing):
         else:
             result = rotated.zero_extend(32)
         cpu.r[self.d] = result
-        cpu.pc = cpu.pc.unsigned + self.size
+        cpu.pc += self.size
 
 @instr("sxth", Extend, "1011 0010 00 Rm(3) Rd(3)", width=16, signed=True)
 @instr("sxtb", Extend, "1011 0010 01 Rm(3) Rd(3)", width=8, signed=True)
@@ -239,7 +239,7 @@ class Move(DataProcessing):
             result = ~result
         cpu.r[self.d] = result
         self._set_flags(cpu, result, cpu.apsr.c, None)
-        cpu.pc = cpu.pc.unsigned + self.size
+        cpu.pc += self.size
 
 @instr("mov", Move, "010001 10 D Rm(4) Rd(3)")
 def mov0(i, D, Rm, Rd):
@@ -301,7 +301,7 @@ class ShiftedMoveNegate(DataProcessing):
         result = ~shifted
         cpu.r[self.d] = result
         self._set_flags(cpu, result, carry, None)
-        cpu.pc = cpu.pc.unsigned + self.size
+        cpu.pc += self.size
 
 # TODO test
 @instr("mvn", ShiftedMoveNegate, "11101 01 0011 S 1111", "0 imm3(3) Rd(4) imm2(2) type(2) Rm(4)")
@@ -335,7 +335,7 @@ class Compare(Instruction):
         cpu.apsr.z = result.is_zero_bit()
         cpu.apsr.c = carry
         cpu.apsr.v = overflow
-        cpu.pc = cpu.pc.unsigned + self.size
+        cpu.pc += self.size
 
 @instr("cmp", Compare, "001 01 Rn(3) imm8(8)")
 def cmp1(i, Rn, imm8):
@@ -399,9 +399,7 @@ class Branch(Instruction):
     def _eval(self, cpu):
         # TODO deal with pc + 4
         if self.cond.expr(cpu.apsr):
-            # TODO bl: next_inst_addr = pc
-            # TODO blx: next_inst_addr = pc - 2
-            next_instr = cpu.pc + 4 + self.pc_delta
+            next_instr = cpu.pc_for_instr + self.pc_delta
             if self.with_link:
                 cpu.lr = next_instr | 1
 
@@ -414,7 +412,7 @@ class Branch(Instruction):
                 # Branch to immediate offset
                 cpu.pc = next_instr + self.imm32
         else:
-            cpu.pc = cpu.pc + self.size
+            cpu.pc += self.size
 
 @instr("b", Branch, "1101 cond(4) imm8(8)")
 def b_t1(i, cond, imm8):
@@ -451,6 +449,131 @@ def bx_t1(i, Rm):
     i.operands = [RegisterOperand(i.m)]
 
 # ------------------------------ Load instructions ------------------------------
+
+class Load(Instruction):
+    def __init__(self, mnemonic, word, is32bit):
+        super(Load, self).__init__(mnemonic, word, is32bit)
+        self.memsize = 32
+        self.signed = False
+
+    def _eval(self, cpu):
+        offset = Shift(cpu.r[self.m], self.shift_t, self.shift_n, cpu.apsr.c)
+        offset_addr = cpu.r[self.n] + offset if self.add else cpu.r[self.n] - offset
+        address = offset_addr if self.index else cpu.r[self.n]
+        data = cpu.read_memory(address, self.memsize)
+        if self.wback:
+            cpu.r[self.n] = offset_addr
+        if self.signed:
+            data = data.sign_extend(32)
+        else:
+            data = data.zero_extend(32)
+        cpu.r[self.t] = data
+        cpu.pc += self.size
+
+class Store(Instruction):
+    def __init__(self, mnemonic, word, is32bit):
+        super(Store, self).__init__(mnemonic, word, is32bit)
+        self.memsize = 32
+        self.signed = False
+
+    def _eval(self, cpu):
+        offset = Shift(cpu.r[self.m], self.shift_t, self.shift_n, cpu.apsr.c)
+        address = cpu.r[self.n] + offset
+        cpu.write_memory(address, cpu.r[self.t][0:self.memsize], self.memsize)
+        cpu.pc += self.size
+
+@instr("str", Store,  "0101 000 Rm(3) Rn(3) Rt(3)", memsize=32)
+@instr("strh", Store, "0101 001 Rm(3) Rn(3) Rt(3)", memsize=16)
+@instr("strb", Store, "0101 010 Rm(3) Rn(3) Rt(3)", memsize=8)
+@instr("ldrsb", Load, "0101 011 Rm(3) Rn(3) Rt(3)", memsize=8, signed=True)
+@instr("ldr", Load,   "0101 100 Rm(3) Rn(3) Rt(3)", memsize=32)
+@instr("ldrh", Load,  "0101 101 Rm(3) Rn(3) Rt(3)", memsize=16)
+@instr("ldrb", Load,  "0101 110 Rm(3) Rn(3) Rt(3)", memsize=8)
+@instr("ldrsh", Load, "0101 111 Rm(3) Rn(3) Rt(3)", memsize=16, signed=True)
+def ldr_str_reg(i, Rm, Rn, Rt):
+    i.t = Rt.unsigned
+    i.n = Rn.unsigned
+    i.m = Rm.unsigned
+    i.index = True
+    i.add = True
+    i.wback = False
+    i.shift_t = SRType.SRType_None
+    i.shift_n = 0
+    i.operands = [RegisterOperand(i.t), MemoryAccessOperand(RegisterOperand(i.n), RegisterOperand(i.m))]
+
+@instr("ldrb.w", Load,  "11111 00 0 0 00 1 Rn(4)", "Rt(4) 0 00000 imm2(2) Rm(4)", memsize=8)
+@instr("ldrh.w", Load,  "11111 00 0 0 01 1 Rn(4)", "Rt(4) 0 00000 imm2(2) Rm(4)", memsize=16)
+@instr("ldr.w", Load,   "11111 00 0 0 10 1 Rn(4)", "Rt(4) 0 00000 imm2(2) Rm(4)", memsize=32)
+@instr("ldrsb.w", Load, "11111 00 1 0 00 1 Rn(4)", "Rt(4) 0 00000 imm2(2) Rm(4)", memsize=8, signed=True)
+@instr("ldrsh.w", Load, "11111 00 1 0 01 1 Rn(4)", "Rt(4) 0 00000 imm2(2) Rm(4)", memsize=16, signed=True)
+@instr("strb.w", Store, "11111 00 0 0 00 0 Rn(4)", "Rt(4) 0 00000 imm2(2) Rm(4)", memsize=8)
+@instr("strh.w", Store, "11111 00 0 0 01 0 Rn(4)", "Rt(4) 0 00000 imm2(2) Rm(4)", memsize=16)
+@instr("str.w", Store,  "11111 00 0 0 10 0 Rn(4)", "Rt(4) 0 00000 imm2(2) Rm(4)", memsize=32)
+def ldr_str_reg_t2(i, Rn, Rt, imm2, Rm):
+    i.t = Rt.unsigned
+    i.n = Rn.unsigned
+    i.m = Rm.unsigned
+    if i.n == 15:
+        raise DecodeError()
+    i.index = True
+    i.add = True
+    i.wback = False
+    i.shift_t = SRType.SRType_LSL
+    i.shift_n = imm2.unsigned
+    i.operands = [RegisterOperand(i.t), MemoryAccessOperand(
+        RegisterOperand(i.n), RegisterOperand(i.m), ShiftRotateOperand(i.shift_t, i.shift_n))]
+
+@instr("str", Store,  "011 0 0 imm5(5) Rn(3) Rt(3)", memsize=32)
+@instr("ldr", Load,   "011 0 1 imm5(5) Rn(3) Rt(3)", memsize=32)
+@instr("strb", Store, "011 1 0 imm5(5) Rn(3) Rt(3)", memsize=8)
+@instr("ldrb", Load,  "011 1 1 imm5(5) Rn(3) Rt(3)", memsize=8)
+@instr("strh", Store, "1000 0 imm5(5) Rn(3) Rt(3)", memsize=16)
+@instr("ldrh", Load,  "1000 1 imm5(5) Rn(3) Rt(3)", memsize=16)
+def ldr_str_imm(i, imm5, Rn, Rt):
+    pass
+
+class LoadLiteral(Instruction):
+    def __init__(self, mnemonic, word, is32bit):
+        super(LoadLiteral, self).__init__(mnemonic, word, is32bit)
+        self.add = True
+        self.signed = False
+
+    def _eval(self, cpu):
+        base = Align(cpu.pc_for_instr, 4)
+        address = (base + self.imm32) if self.add else (base - self.imm32)
+        data = cpu.read_memory(address, self.memsize)
+        if self.signed:
+            data = data.sign_extend(32)
+        else:
+            data = data.zero_extend(32)
+        cpu.r[self.t] = data
+        cpu.pc += self.size
+
+@instr("ldr", LoadLiteral, "01001 Rt(3) imm8(8)", memsize=32)
+def ldr_literal(i, Rt, imm8):
+    i.t = Rt.unsigned
+    i.imm32 = (imm8 % '00').zero_extend(32)
+    i.operands = [RegisterOperand(i.t), MemoryAccessOperand(
+        RegisterOperand(15), ImmediateOperand(i.imm32.unsigned))] # TODO label operand?
+
+@instr("ldr.w", LoadLiteral,   "11111 00 0 U 10 1 1111", "Rt(4) imm12(12)", memsize=32)
+@instr("ldrh.w", LoadLiteral,  "11111 00 0 U 01 1 1111", "Rt(4) imm12(12)", memsize=16)
+@instr("ldrb.w", LoadLiteral,  "11111 00 0 U 00 1 1111", "Rt(4) imm12(12)", memsize=8)
+@instr("ldrsh.w", LoadLiteral, "11111 00 1 U 01 1 1111", "Rt(4) imm12(12)", memsize=16, signed=True)
+@instr("ldrsb.w", LoadLiteral, "11111 00 1 U 00 1 1111", "Rt(4) imm12(12)", memsize=8, signed=True)
+def ldr_literal(i, U, Rt, imm12):
+    i.t = Rt.unsigned
+    if i.t == 15:
+        raise DecodeError()
+    i.imm32 = imm12.zero_extend(32)
+    i.add = (U == '1')
+    i.operands = [RegisterOperand(i.t), MemoryAccessOperand(
+        RegisterOperand(15), ImmediateOperand(
+        i.imm32.unsigned if i.add else -i.imm32.unsigned))] # TODO label operand?
+
+@instr("str", Store, "1001 0 Rt(3) imm8(8)", memsize=32)
+def ldr_str_imm_t2(i, Rt, imm8):
+    pass
 
 # ------------------------------ Nop-compatible hint instructions ------------------------------
 

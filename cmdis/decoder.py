@@ -61,7 +61,7 @@ class Instruction(object):
         return bytearray((self._word >> (8 * i)) & 0xff for i in range(self.size))
 
     def _eval(self, cpu):
-        pass
+        cpu.pc += self.size
 
     def execute(self, cpu):
         return self._eval(cpu)
@@ -78,6 +78,11 @@ DecoderTreeNode = namedtuple('DecoderTreeNode', 'mask children')
 ##
 # @brief Exception raised when an instruction cannot be decoded successfully.
 class UndefinedInstructionError(Exception):
+    pass
+
+##
+# @brief Selected decoder doesn't match, move on.
+class DecodeError(Exception):
     pass
 
 ##
@@ -131,8 +136,11 @@ class DecoderTree(object):
                     raise UndefinedInstructionError()
             else:
                 for d in node.children:
-                    if d.check(word):
-                        return d.decode(word)
+                    try:
+                        if d.check(word):
+                            return d.decode(word)
+                    except DecodeError:
+                        continue
 
                 # None of the decoders matched.
                 raise UndefinedInstructionError()

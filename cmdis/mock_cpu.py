@@ -38,8 +38,6 @@ class MockCpuModelDelegate(CpuModelDelegate):
     def __init__(self):
         self._mem = []
         self._regs = {reg:0 for reg in CORE_REGISTER.itervalues()}
-#         for reg in CORE_REGISTER.values():
-#             self._regs[reg] = 0
 
         # set T bit in xpsr
         self._regs[16] = 0x01000000
@@ -58,7 +56,7 @@ class MockCpuModelDelegate(CpuModelDelegate):
         for m in self._mem:
             if m.start <= addr <= m.end:
                 return m, addr - m.start
-        return None
+        return None, 0
 
     def read_memory(self, addr, size=32):
         mem, offset = self._find_mem(addr)
@@ -75,7 +73,7 @@ class MockCpuModelDelegate(CpuModelDelegate):
         mem, offset = self._find_mem(addr)
         if mem:
             if size == 8:
-                mem.data[offset:offset+1] = value
+                mem.data[offset:offset+1] = [value]
             elif size == 16:
                 mem.data[offset:offset+2] = le16_to_bytes(value)
             elif size == 32:

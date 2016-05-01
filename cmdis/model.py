@@ -131,11 +131,15 @@ class CpuModel(object):
     @property
     def pc(self):
         return self.read_register('pc')
-#         return bitstring(self.read_register('pc').unsigned + 4)
 
     @pc.setter
     def pc(self, value):
         self.write_register('pc', value)
+
+    ## @brief Returns PC + 4 used in instruction implementations.
+    @property
+    def pc_for_instr(self):
+        return self.read_register('pc') + 4
 
     @property
     def lr(self):
@@ -210,10 +214,14 @@ class CpuModel(object):
             self._delegate.write_register(reg, value)
 
     def read_memory(self, addr, size=32):
+        if isinstance(addr, bitstring):
+            addr = addr.unsigned
         if self._delegate is not None:
             return bitstring(self._delegate.read_memory(addr, size), size)
 
     def write_memory(self, addr, value, size=32):
+        if isinstance(addr, bitstring):
+            addr = addr.unsigned
         if isinstance(value, bitstring):
             value = value.unsigned
         if self._delegate is not None:

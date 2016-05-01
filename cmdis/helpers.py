@@ -39,6 +39,14 @@ class SRType(Enum):
     SRType_ROR = 4
     SRType_RRX = 5
 
+def Align(value, alignment):
+    assert alignment != 0
+    if isinstance(value, bitstring):
+        mask = ~bitstring(alignment - 1, value.width)
+    else:
+        mask = ~(alignment - 1)
+    return value & mask
+
 ##
 # @return (bits(N), bit, bit)
 def AddWithCarry(x, y, carry_in):
@@ -111,7 +119,7 @@ def RRX(x, carry_in):
 def Shift_C(value, type, amount, carry_in):
     assert not (type == SRType.SRType_RRX and amount != 1)
 
-    if amount == 0:
+    if amount == 0 or type == SRType.SRType_None:
         result, carry_out = value, carry_in
     else:
         if type == SRType.SRType_LSL:
