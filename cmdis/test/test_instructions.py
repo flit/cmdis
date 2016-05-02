@@ -63,7 +63,7 @@ def format_bits(bits, **kwargs):
             else:
                 pass
         elif state == 1:
-            if c in string.ascii_letters:
+            if c in string.ascii_letters + string.digits:
                 ident += c
             elif c == ':':
                 state = 2
@@ -114,6 +114,26 @@ def cpu():
 @pytest.fixture(scope='function')
 def fmt(cpu):
     return Formatter(cpu)
+
+@pytest.fixture(params=range(8))
+def reg3bit(request):
+    return request.param
+
+@pytest.fixture(params=range(8))
+def reg3bit2(request):
+    return request.param
+
+@pytest.fixture(params=range(8))
+def reg3bit3(request):
+    return request.param
+
+@pytest.fixture(params=range(16))
+def reg4bit(request):
+    return request.param
+
+@pytest.fixture(params=range(15))
+def reg4bit_nopc(request):
+    return request.param
 
 class TestAdd:
     # add r1, sp, #20
@@ -807,65 +827,155 @@ class TestLoad:
         i.execute(cpu)
         assert cpu.r[3] == 0x12345678
 
-    # ldr.w r3, [pc, #4]
-    def test_ldr_literal_w(self, cpu, fmt):
-        cpu.write32(0x8008, 0x12345678) # write literal to pc + offset
-        cpu.r[3] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 0 U=1 10 1 1111, Rt=0011 imm12=000000000100'))
-        assert i.t == 3
+    # ldr.w r3, [pc, #x]
+    @pytest.mark.parametrize(("U", "imm12", "addr"), [
+            (1, 4, 0x8008),  # ldr.w r3, [pc, #4]
+            (0, 16, 0x7ff4), # ldr.w r3, [pc, #-16]
+        ])
+    def test_ldr_literal_w(self, cpu, fmt, U, imm12, addr, reg4bit_nopc):
+        cpu.write32(addr, 0x12345678) # write literal to pc + offset
+        cpu.r[reg4bit_nopc] = 0xa5a5a5a5
+        i = decoder.decode(fmt_32bit('11111 00 0 {U} 10 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
-        assert cpu.r[3] == 0x12345678
+        assert cpu.r[reg4bit_nopc] == 0x12345678
 
-    # ldr.w r3, [pc, #-16]
-    def test_ldr_literal_w_minus(self, cpu, fmt):
-        cpu.write32(0x7ff4, 0x12345678) # write literal to pc + offset
-        cpu.r[3] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 0 U=0 10 1 1111, Rt=0011 imm12=000000010000'))
-        assert i.t == 3
+    # ldrh.w r3, [pc, #x]
+    @pytest.mark.parametrize(("U", "imm12", "addr"), [
+            (1, 4, 0x8008),  # ldrh.w r3, [pc, #4]
+            (0, 16, 0x7ff4), # ldrh.w r3, [pc, #-16]
+        ])
+    def test_ldrh_literal_w(self, cpu, fmt, U, imm12, addr, reg4bit_nopc):
+        cpu.write32(addr, 0x12345678) # write literal to pc + offset
+        cpu.r[reg4bit_nopc] = 0xa5a5a5a5
+        i = decoder.decode(fmt_32bit('11111 00 0 {U} 01 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
-        assert cpu.r[3] == 0x12345678
+        assert cpu.r[reg4bit_nopc] == 0x5678
 
-    # ldrh.w r3, [pc, #4]
-    def test_ldrh_literal_w(self, cpu, fmt):
-        cpu.write32(0x8008, 0x12345678) # write literal to pc + offset
-        cpu.r[3] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 0 U=1 01 1 1111, Rt=0011 imm12=000000000100'))
-        assert i.t == 3
+    # ldrb.w r3, [pc, #x]
+    @pytest.mark.parametrize(("U", "imm12", "addr"), [
+            (1, 4, 0x8008),  # ldrb.w r3, [pc, #4]
+            (0, 16, 0x7ff4), # ldrb.w r3, [pc, #-16]
+        ])
+    def test_ldrb_literal_w(self, cpu, fmt, U, imm12, addr, reg4bit_nopc):
+        cpu.write32(addr, 0x12345678) # write literal to pc + offset
+        cpu.r[reg4bit_nopc] = 0xa5a5a5a5
+        i = decoder.decode(fmt_32bit('11111 00 0 {U} 00 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
-        assert cpu.r[3] == 0x5678
+        assert cpu.r[reg4bit_nopc] == 0x78
 
-    # ldrh.w r3, [pc, #-16]
-    def test_ldrh_literal_w_minus(self, cpu, fmt):
-        cpu.write32(0x7ff4, 0x12345678) # write literal to pc + offset
-        cpu.r[3] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 0 U=0 01 1 1111, Rt=0011 imm12=000000010000'))
-        assert i.t == 3
+    # ldrsh.w r3, [pc, #x]
+    @pytest.mark.parametrize(("U", "imm12", "addr", "v", "e"), [
+            (1, 4, 0x8008, 0x1234, 0x00001234),  # ldrsh.w r3, [pc, #4]
+            (1, 4, 0x8008, 0xff68, 0xffffff68),  # ldrsh.w r3, [pc, #4]
+            (0, 16, 0x7ff4, 0x1234, 0x00001234), # ldrsh.w r3, [pc, #-16]
+            (0, 16, 0x7ff4, 0xff68, 0xffffff68), # ldrsh.w r3, [pc, #-16]
+        ])
+    def test_ldrsh_literal_w(self, cpu, fmt, U, imm12, addr, v, e, reg4bit_nopc):
+        cpu.write16(addr, v) # write literal to pc + offset
+        cpu.r[reg4bit_nopc] = 0xa5a5a5a5
+        i = decoder.decode(fmt_32bit('11111 00 1 {U} 01 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
-        assert cpu.r[3] == 0x5678
+        assert cpu.r[reg4bit_nopc] == e
 
-    # ldrb.w r3, [pc, #4]
-    def test_ldrb_literal_w(self, cpu, fmt):
-        cpu.write32(0x8008, 0x12345678) # write literal to pc + offset
-        cpu.r[3] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 0 U=1 00 1 1111, Rt=0011 imm12=000000000100'))
-        assert i.t == 3
+    # ldrsb.w r3, [pc, #x]
+    @pytest.mark.parametrize(("U", "imm12", "addr", "v", "e"), [
+            (1, 4, 0x8008, 0x12, 0x00000012),  # ldrsb.w r3, [pc, #4]
+            (1, 4, 0x8008, 0xf6, 0xfffffff6),  # ldrsb.w r3, [pc, #4]
+            (0, 16, 0x7ff4, 0x12, 0x00000012), # ldrsb.w r3, [pc, #-16]
+            (0, 16, 0x7ff4, 0xf6, 0xfffffff6), # ldrsb.w r3, [pc, #-16]
+        ])
+    def test_ldrsh_literal_w(self, cpu, fmt, U, imm12, addr, v, e, reg4bit_nopc):
+        cpu.write8(addr, v) # write literal to pc + offset
+        cpu.r[reg4bit_nopc] = 0xa5a5a5a5
+        i = decoder.decode(fmt_32bit('11111 00 1 {U} 00 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
-        assert cpu.r[3] == 0x78
+        assert cpu.r[reg4bit_nopc] == e
 
-    # ldrb.w r3, [pc, #-16]
-    def test_ldrb_literal_w_minus(self, cpu, fmt):
-        cpu.write32(0x7ff4, 0x12345678) # write literal to pc + offset
-        cpu.r[3] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 0 U=0 00 1 1111, Rt=0011 imm12=000000010000'))
-        assert i.t == 3
+    # ldr r0, [r1, #imm]
+    @pytest.mark.parametrize(("addr", "imm",), [
+            (0x20000000, 0x0),  # ldr rX, [rY, #0]
+            (0x1000, 0x48),  # ldr rX, [rY, #0x48]
+            (0x250, 0x7c),  # ldr rX, [rY, #0x7c]
+        ])
+    def test_ldr_imm_t1(self, cpu, fmt, addr, imm):
+        Rn = 1
+        Rt = 0
+        cpu.write32(addr + imm, 0x12345678)
+        cpu.r[Rt] = 0xa5a5a5a5
+        cpu.r[Rn] = addr
+        i = decoder.decode(fmt_16bit('011 0 1 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>2, Rn=Rn, Rt=Rt))
+        assert i.n == Rn
+        assert i.t == Rt
         print(fmt.format(i))
         i.execute(cpu)
-        assert cpu.r[3] == 0x78
+        assert cpu.r[Rt] == 0x12345678
+
+    # ldr r0, [sp, #imm]
+    @pytest.mark.parametrize(("addr", "imm",), [
+            (0x20000000, 0x0),  # ldr rX, [sp, #0]
+            (0x1000, 0x48),  # ldr rX, [sp, #0x48]
+            (0x250, 0x7c),  # ldr rX, [sp, #0x7c]
+        ])
+    def test_ldr_imm_t2(self, cpu, fmt, addr, imm):
+        Rt = 0
+        cpu.write32(addr + imm, 0x12345678)
+        cpu.r[13] = addr
+        cpu.r[Rt] = 0xa5a5a5a5
+        i = decoder.decode(fmt_16bit('1001 1 {Rt:3} {imm8:8}', imm8=imm>>2, Rt=Rt))
+        assert i.t == Rt
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rt] == 0x12345678
+
+    # ldrh r0, [r1, #imm]
+    @pytest.mark.parametrize(("addr", "imm",), [
+            (0x20000000, 0x0),  # ldrh rX, [rY, #0]
+            (0x20000000, 2),  # ldrh rX, [rY, #2]
+            (0x1000, 0x18),  # ldrh r0, [r1, #0x18]
+            (0x250, 0x38),  # ldrh r0, [r1, #0x38]
+        ])
+    def test_ldrh_imm_t1(self, cpu, fmt, addr, imm):
+        Rn = 1
+        Rt = 0
+        cpu.write16(addr + imm, 0x5678)
+        cpu.r[Rt] = 0xa5a5a5a5
+        cpu.r[Rn] = addr
+        i = decoder.decode(fmt_16bit('100 0 1 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>1, Rn=Rn, Rt=Rt))
+        assert i.n == Rn
+        assert i.t == Rt
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rt] == 0x5678
+
+    # ldrb r0, [r1, #imm]
+    @pytest.mark.parametrize(("addr", "imm",), [
+            (0x20000000, 0x0),  # ldrb rX, [rY, #0]
+            (0x20000000, 1),  # ldrb rX, [rY, #1]
+            (0x1000, 28),  # ldrb r0, [r1, #28]
+            (0x250, 31),  # ldrb r0, [r1, #31]
+        ])
+    def test_ldrb_imm_t1(self, cpu, fmt, addr, imm):
+        Rn = 1
+        Rt = 0
+        cpu.write8(addr + imm, 0x78)
+        cpu.r[Rt] = 0xa5a5a5a5
+        cpu.r[Rn] = addr
+        i = decoder.decode(fmt_16bit('011 1 1 {imm5:5} {Rn:3} {Rt:3}', imm5=imm, Rn=Rn, Rt=Rt))
+        assert i.n == Rn
+        assert i.t == Rt
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rt] == 0x78
 
 
 class TestStore:
@@ -936,6 +1046,78 @@ class TestStore:
         assert cpu.read8(0x1008) == 0
         assert cpu.read8(0x1009) == 0x55
         assert cpu.read8(0x100a) == 0
+
+    # str r0, [r1, #imm]
+    @pytest.mark.parametrize(("addr", "imm",), [
+            (0x20000000, 0x0),  # str r0, [r1, #0]
+            (0x1000, 0x48),  # str r0, [r1, #0x48]
+            (0x250, 0x7c),  # str r0, [r1, #0x7c]
+        ])
+    def test_str_imm_t1(self, cpu, fmt, addr, imm):
+        Rn = 1
+        Rt = 0
+        cpu.r[Rt] = 0x12341234
+        cpu.r[Rn] = addr
+        i = decoder.decode(fmt_16bit('011 0 0 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>2, Rn=Rn, Rt=Rt))
+        assert i.t == Rt
+        assert i.n == Rn
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.read32(addr + imm) == 0x12341234
+
+    # str r0, [sp, #imm]
+    @pytest.mark.parametrize(("addr", "imm",), [
+            (0x20000000, 0x0),  # str r0, [sp, #0]
+            (0x1000, 0x48),  # str r0, [sp, #0x48]
+            (0x250, 0x7c),  # str r0, [sp, #0x7c]
+        ])
+    def test_str_imm_t2(self, cpu, fmt, addr, imm):
+        Rt = 0
+        cpu.r[13] = addr
+        cpu.r[Rt] = 0x12341234
+        i = decoder.decode(fmt_16bit('1001 0 {Rt:3} {imm8:8}', imm8=imm>>2, Rt=Rt))
+        assert i.t == Rt
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.read32(addr + imm) == 0x12341234
+
+    # strh r0, [r1, #imm]
+    @pytest.mark.parametrize(("addr", "imm",), [
+            (0x20000000, 0x0),  # strh r0, [r1, #0]
+            (0x20000000, 0x2),  # strh r0, [r1, #2]
+            (0x1000, 0x18),  # strh r0, [r1, #0x18]
+            (0x250, 0x38),  # strh r0, [r1, #0x38]
+        ])
+    def test_strh_imm_t1(self, cpu, fmt, addr, imm):
+        Rn = 1
+        Rt = 0
+        cpu.r[Rt] = 0x12345678
+        cpu.r[Rn] = addr
+        i = decoder.decode(fmt_16bit('100 0 0 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>1, Rn=Rn, Rt=Rt))
+        assert i.t == Rt
+        assert i.n == Rn
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.read16(addr + imm) == 0x5678
+
+    # strb r0, [r1, #imm]
+    @pytest.mark.parametrize(("addr", "imm",), [
+            (0x20000000, 0x0),  # strb r0, [r1, #0]
+            (0x20000000, 0x1),  # strb r0, [r1, #1]
+            (0x1000, 28),  # strb r0, [r1, #28]
+            (0x250, 31),  # strb r0, [r1, #31]
+        ])
+    def test_strb_imm_t1(self, cpu, fmt, addr, imm):
+        Rn = 1
+        Rt = 0
+        cpu.r[Rt] = 0x12345678
+        cpu.r[Rn] = addr
+        i = decoder.decode(fmt_16bit('011 1 0 {imm5:5} {Rn:3} {Rt:3}', imm5=imm, Rn=Rn, Rt=Rt))
+        assert i.t == Rt
+        assert i.n == Rn
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.read8(addr + imm) == 0x78
 
 class TestNopHints:
     @pytest.mark.parametrize("x", [0, 1, 2, 3, 4])

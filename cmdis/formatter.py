@@ -43,10 +43,14 @@ class RegisterOperand(Operand):
         return CORE_REGISTER_NAMES[self._reg]
 
 class ImmediateOperand(Operand):
-    def __init__(self, imm):
+    def __init__(self, imm, hideIfZero=False):
         self._imm = imm
+        self._hideIfZero = hideIfZero
 
     def format(self, formatter):
+        if self._imm == 0 and self._hideIfZero:
+            return None
+
         if self._imm > 9:
             comment = "0x%x" % (self._imm)
             formatter.add_comment(comment)

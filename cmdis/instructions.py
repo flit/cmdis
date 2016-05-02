@@ -457,8 +457,11 @@ class Load(Instruction):
         self.signed = False
 
     def _eval(self, cpu):
-        offset = Shift(cpu.r[self.m], self.shift_t, self.shift_n, cpu.apsr.c)
-        offset_addr = cpu.r[self.n] + offset if self.add else cpu.r[self.n] - offset
+        if hasattr(self, 'imm32'):
+            offset = self.imm32
+        else:
+            offset = Shift(cpu.r[self.m], self.shift_t, self.shift_n, cpu.apsr.c)
+        offset_addr = (cpu.r[self.n] + offset) if self.add else (cpu.r[self.n] - offset)
         address = offset_addr if self.index else cpu.r[self.n]
         data = cpu.read_memory(address, self.memsize)
         if self.wback:
@@ -477,8 +480,12 @@ class Store(Instruction):
         self.signed = False
 
     def _eval(self, cpu):
-        offset = Shift(cpu.r[self.m], self.shift_t, self.shift_n, cpu.apsr.c)
-        address = cpu.r[self.n] + offset
+        if hasattr(self, 'imm32'):
+            offset = self.imm32
+        else:
+            offset = Shift(cpu.r[self.m], self.shift_t, self.shift_n, cpu.apsr.c)
+        offset_addr = (cpu.r[self.n] + offset) if self.add else (cpu.r[self.n] - offset)
+        address = offset_addr if self.index else cpu.r[self.n]
         cpu.write_memory(address, cpu.r[self.t][0:self.memsize], self.memsize)
         cpu.pc += self.size
 
@@ -527,16 +534,26 @@ def ldr_str_reg_t2(i, Rn, Rt, imm2, Rm):
 @instr("ldr", Load,   "011 0 1 imm5(5) Rn(3) Rt(3)", memsize=32)
 @instr("strb", Store, "011 1 0 imm5(5) Rn(3) Rt(3)", memsize=8)
 @instr("ldrb", Load,  "011 1 1 imm5(5) Rn(3) Rt(3)", memsize=8)
-@instr("strh", Store, "1000 0 imm5(5) Rn(3) Rt(3)", memsize=16)
-@instr("ldrh", Load,  "1000 1 imm5(5) Rn(3) Rt(3)", memsize=16)
+@instr("strh", Store, "100 0 0 imm5(5) Rn(3) Rt(3)", memsize=16)
+@instr("ldrh", Load,  "100 0 1 imm5(5) Rn(3) Rt(3)", memsize=16)
 def ldr_str_imm(i, imm5, Rn, Rt):
-    pass
+    i.t = Rt.unsigned
+    i.n = Rn.unsigned
+    if i.memsize == 32:
+        imm5 %= '00'
+    elif i.memsize == 16:
+        imm5 %= '0'
+    i.imm32 = imm5.zero_extend(32)
+    i.index = True
+    i.add = True
+    i.wback = False
+    i.operands = [RegisterOperand(i.t), MemoryAccessOperand(
+        RegisterOperand(i.n), ImmediateOperand(i.imm32.unsigned, hideIfZero=True))]
 
-class LoadLiteral(Instruction):
+class LoadLiteral(Load):
     def __init__(self, mnemonic, word, is32bit):
         super(LoadLiteral, self).__init__(mnemonic, word, is32bit)
         self.add = True
-        self.signed = False
 
     def _eval(self, cpu):
         base = Align(cpu.pc_for_instr, 4)
@@ -569,11 +586,19 @@ def ldr_literal(i, U, Rt, imm12):
     i.add = (U == '1')
     i.operands = [RegisterOperand(i.t), MemoryAccessOperand(
         RegisterOperand(15), ImmediateOperand(
-        i.imm32.unsigned if i.add else -i.imm32.unsigned))] # TODO label operand?
+        i.imm32.unsigned if i.add else -i.imm32.unsigned, hideIfZero=True))] # TODO label operand?
 
 @instr("str", Store, "1001 0 Rt(3) imm8(8)", memsize=32)
+@instr("ldr", Load,  "1001 1 Rt(3) imm8(8)", memsize=32)
 def ldr_str_imm_t2(i, Rt, imm8):
-    pass
+    i.t = Rt.unsigned
+    i.n = 13
+    i.imm32 = (imm8 % '00').zero_extend(32)
+    i.index = True
+    i.add = True
+    i.wback = False
+    i.operands = [RegisterOperand(i.t), MemoryAccessOperand(
+        RegisterOperand(13), ImmediateOperand(i.imm32.unsigned, hideIfZero=True))]
 
 # ------------------------------ Nop-compatible hint instructions ------------------------------
 

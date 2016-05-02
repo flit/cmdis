@@ -256,7 +256,9 @@ class CpuModel(object):
             self.r[3], self.r[7], self.r[11], self.pc))
 
     def __repr__(self):
-        return "<%s@%s pc=%x xpsr=%x>" % (self.__class__.__name__, hex(id(self)), self.pc, self.xpsr)
+        return "<%s@%s pc=%x xpsr=%x rN=[%s]>" % \
+            (self.__class__.__name__, hex(id(self)), self.pc, self.xpsr,
+            " ".join("%x" % (self.r[i].unsigned) for i in range(15)))
 
 ##
 # Register and memory values in the delegate APIs are all regular integers.
