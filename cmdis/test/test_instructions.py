@@ -416,6 +416,48 @@ class TestShifts:
         i.execute(cpu)
         assert cpu.r[1] == expected
 
+class TestAdr:
+    # adr r3, label
+    def test_adr_t1(self, cpu, fmt):
+        Rd = 3
+        imm = 28
+        i = decoder.decode(fmt_16bit('1010 0 {Rd:3} {imm:8}', Rd=Rd, imm=imm>>2))
+        assert i.d == Rd
+        print(fmt.format(i))
+        pc = cpu.pc.unsigned
+        i.execute(cpu)
+        assert cpu.r[Rd] == pc + 4 + imm
+
+    # adr.w r3, label
+    @pytest.mark.parametrize(("Rd", "imm"), [
+        (3, 28),
+        (12, 3060),
+        ])
+    def test_adr_t2(self, cpu, fmt, Rd, imm):
+        imm_bits = bitstring(imm)
+        i = decoder.decode(fmt_32bit('11110 {im} 10101 0 1111, 0 {imm3:3} {Rd:4} {imm8:8}',
+            Rd=Rd, im=imm_bits[11], imm3=imm_bits[8:11], imm8=imm_bits[0:8]))
+        assert i.d == Rd
+        print(fmt.format(i))
+        pc = cpu.pc.unsigned
+        i.execute(cpu)
+        assert cpu.r[Rd] == pc + 4 - imm
+
+    # adr.w r3, label
+    @pytest.mark.parametrize(("Rd", "imm"), [
+        (3, 28),
+        (12, 3060),
+        ])
+    def test_adr_t3(self, cpu, fmt, Rd, imm):
+        imm_bits = bitstring(imm)
+        i = decoder.decode(fmt_32bit('11110 {im} 10000 0 1111, 0 {imm3:3} {Rd:4} {imm8:8}',
+            Rd=Rd, im=imm_bits[11], imm3=imm_bits[8:11], imm8=imm_bits[0:8]))
+        assert i.d == Rd
+        print(fmt.format(i))
+        pc = cpu.pc.unsigned
+        i.execute(cpu)
+        assert cpu.r[Rd] == pc + 4 + imm
+
 class TestExtend:
     # uxtb r1, r4
     def test_uxtb_t1(self, cpu, fmt):

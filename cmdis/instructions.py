@@ -187,6 +187,28 @@ def shift_imm_t1(i, stype, imm5, Rm, Rd):
     i.setflags = SetFlags.NotInITBlock
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), ImmediateOperand(i.shift_n)]
 
+# ------------------------------ Address to register instructions ------------------------------
+
+class AddressToRegister(Instruction):
+    def _eval(self, cpu):
+        result = (Align(cpu.pc_for_instr, 4) + self.imm32) if self.add else (Align(cpu.pc_for_instr, 4) - self.imm32)
+        cpu.r[self.d] = result
+        cpu.pc += self.size
+
+@instr("adr", AddressToRegister, "1010 0 Rd(3) imm8(8)")
+def adr_t1(i, Rd, imm8):
+    i.d = Rd.unsigned
+    i.imm32 = (imm8 % '00').zero_extend(32)
+    i.add = True
+    i.operands = [RegisterOperand(i.d), LabelOperand(i.imm32.unsigned)]
+
+@instr("adr.w", AddressToRegister, "11110 im 10101 0 1111", "0 imm3(3) Rd(4) imm8(8)", add=False)
+@instr("adr.w", AddressToRegister, "11110 im 10000 0 1111", "0 imm3(3) Rd(4) imm8(8)", add=True)
+def adr_t2(i, im, imm3, Rd, imm8):
+    i.d = Rd.unsigned
+    i.imm32 = (im % imm3 % imm8).zero_extend(32)
+    i.operands = [RegisterOperand(i.d), LabelOperand(i.imm32.unsigned)]
+
 # ------------------------------ Sign/unsigned extend instructions ------------------------------
 
 class Extend(DataProcessing):
