@@ -487,7 +487,7 @@ def cmp1(i, Rn, imm8):
 # TODO test
 @instr("cmp", Compare, "010000 1010 Rm(3) Rn(3)")
 @instr("cmn", Compare, "010000 1011 Rm(3) Rn(3)", negate=False)
-def cmp3(i, N, Rm, Rn):
+def cmp3(i, Rm, Rn):
     i.n = Rn.unsigned
     i.m = Rn.unsigned
     i.operands = [RegisterOperand(i.n), RegisterOperand(i.m)]
@@ -502,7 +502,7 @@ def cmp4(i, N, Rm, Rn):
 # TODO test
 @instr("cmp.w", Compare, "11110 im 0 1101 1 Rn(4)", "0 imm3(3) 1111 imm8(8)")
 @instr("cmn", Compare,   "11110 im 0 1000 1 Rn(4)", "0 imm3(3) 1111 imm8(8)", negate=False)
-def cmp2(i, im, imm3, imm8):
+def cmp2(i, im, Rn, imm3, imm8):
     i.n = Rn.unsigned
     i.imm32 = ThumbExpandImm(im % imm3 % imm8)
     i.operands = [RegisterOperand(i.n), ImmediateOperand(i.imm32.unsigned)]
