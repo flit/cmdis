@@ -27,11 +27,13 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from .decoder import (Instruction, instr, DecodeError)
+from .decoder import (Instruction, instr, DecodeError, UnpredictableError)
 from .bitstring import (bitstring, bit0, bit1)
 from .formatter import (RegisterOperand, ImmediateOperand, LabelOperand,
-                        ShiftRotateOperand, BarrierOperand, MemoryAccessOperand)
+                        ShiftRotateOperand, BarrierOperand, MemoryAccessOperand,
+                        ReglistOperand, CpsOperand, SpecialRegisterOperand)
 from .helpers import *
+from .registers import CORE_REGISTER
 from collections import namedtuple
 from enum import Enum
 import operator
@@ -59,7 +61,8 @@ class DataProcessing(Instruction):
         if setflags:
             cpu.apsr.n = result[31]
             cpu.apsr.z = result.is_zero_bit()
-            cpu.apsr.c = carry
+            if carry is not None:
+                cpu.apsr.c = carry
             if overflow is not None:
                 cpu.apsr.v = overflow
 
@@ -73,6 +76,7 @@ class AddSub(DataProcessing):
         self.sub = False
 
     def _eval(self, cpu):
+        # TODO handle PC + 4
         if self.sub:
             result, carry, overflow = AddWithCarry(cpu.r[self.n],
                 ~(self.imm32 if hasattr(self, 'imm32') else cpu.r[self.m]),
@@ -89,14 +93,14 @@ class BitOp(DataProcessing):
     def _eval(self, cpu):
         result = self.op(cpu.r[self.n], cpu.r[self.m])
         cpu.r[self.d] = result
-        self._set_flags(cpu, result, cpu.apsr.c, None)
+        self._set_flags(cpu, result, None, None)
         super(BitOp, self)._eval(cpu)
 
 class BitClear(DataProcessing):
     def _eval(self, cpu):
         result = cpu.r[self.n] & ~cpu.r[self.m]
         cpu.r[self.d] = result
-        self._set_flags(cpu, result, cpu.apsr.c, None)
+        self._set_flags(cpu, result, None, None)
         super(BitClear, self)._eval(cpu)
 
 class ShiftOp(DataProcessing):
@@ -169,6 +173,24 @@ def add_sp_plus_imm_t1(i, Rd, imm8):
     i.imm32 = (imm8 % '00').zero_extend(32)
     i.operands = [RegisterOperand(i.d), RegisterOperand(13), ImmediateOperand(i.imm32.unsigned)]
 
+@instr("add", AddSub, "01000100 DM 1101 Rdm(3)")
+def add_sp_plus_reg_t1(i, DM, Rdm):
+    i.d = (DM % Rdm).unsigned
+    i.n = 13
+    i.m = (DM % Rdm).unsigned
+    i.setflags = SetFlags.Never
+    i.operands = [RegisterOperand(i.d), RegisterOperand(13), RegisterOperand(i.m)]
+
+@instr("add", AddSub, "01000100 1 Rm(4) 101")
+def add_sp_plus_reg_t2(i, Rm):
+    if Rm == '1101':
+        raise DecodeError() # see encoding T1
+    i.d = 13
+    i.n = 13
+    i.m = Rm.unsigned
+    i.setflags = SetFlags.Never
+    i.operands = [RegisterOperand(13), RegisterOperand(i.m)]
+
 @instr("add", AddSub, "1011 0000 0 imm7(7)")
 @instr("sub", AddSub, "1011 0000 1 imm7(7)", sub=True)
 def add_sp_plus_imm_t2(i, imm7):
@@ -186,6 +208,63 @@ def shift_imm_t1(i, stype, imm5, Rm, Rd):
     _, i.shift_n = DecodeImmShift(stype, imm5)
     i.setflags = SetFlags.NotInITBlock
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), ImmediateOperand(i.shift_n)]
+
+# ------------------------------ Reverse subtract instructions ------------------------------
+
+class ReverseSubtract(DataProcessing):
+    def _eval(self, cpu):
+        result, carry, overflow = AddWithCarry(~cpu.r[self.n], self.imm32, bit1)
+        cpu.r[self.d] = result
+        self._set_flags(cpu, result, carry, overflow)
+        cpu.pc += self.size
+
+@instr("rsbs", ReverseSubtract, "010000 1001 Rn(3) Rd(3)")
+def rsb(i, Rn, Rd):
+    i.d = Rd.unsigned
+    i.n = Rn.unsigned
+    i.setflags = SetFlags.NotInITBlock
+    i.imm32 = zeros(32)
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), ImmediateOperand(i.imm32.unsigned)]
+
+@instr("rsb", ReverseSubtract, "11110 im 0 1110 S Rn(4)", "0 imm3(3) Rd(4) imm8(8)")
+def rsb_w(i, im, S, Rn, imm3, Rd, imm8):
+    i.d = Rd.unsigned
+    i.n = Rn.unsigned
+    if i.d in (13, 15) or i.n in (13, 15):
+        raise UnpredictableError()
+    i.setflags = (SetFlags.Never, SetFlags.Always)[S == '1']
+    i._mnemonic += "s.w" if S == '1' else ".w"
+    i.imm32 = ThumbExpandImm(im % imm3 % imm8)
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), ImmediateOperand(i.imm32.unsigned)]
+
+# ------------------------------ Multiply instructions ------------------------------
+
+class Multiply(DataProcessing):
+    def _eval(self, cpu):
+        operand1 = cpu.r[self.n].signed
+        operand2 = cpu.r[self.m].signed
+        result = bitstring(operand1 * operand2, 32)
+        cpu.r[self.d] = result
+        self._set_flags(cpu, result, None, None)
+        cpu.pc += self.size
+
+@instr("muls", Multiply, "010000 1101 Rn(3) Rdm(3)")
+def mul_t1(i, Rn, Rdm):
+    i.d = Rdm.unsigned
+    i.n = Rn.unsigned
+    i.m = Rdm.unsigned
+    i.setflags = SetFlags.NotInITBlock
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), RegisterOperand(i.m)]
+
+@instr("mul", Multiply, "11111 0110 000 Rn(4)", "1111 Rd(4) 0000 Rm(4)")
+def mul_t2(i, Rn, Rd, Rm):
+    i.d = Rd.unsigned
+    i.n = Rn.unsigned
+    i.m = Rm.unsigned
+    i.setflags = SetFlags.Never
+    if i.d in (13, 15) or i.n in (13, 15) or i.m in (13, 15):
+        raise UnpredictableError()
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.n), RegisterOperand(i.m)]
 
 # ------------------------------ Address to register instructions ------------------------------
 
@@ -242,6 +321,46 @@ def extend2(i, Rm, rotate, Rd):
     i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
     if i.rotation != 0:
         i.operands.append(ShiftRotateOperand(SRType.SRType_ROR, i.rotation))
+
+# ------------------------------ Byte reverse instructions ------------------------------
+
+class ByteReverse(Instruction):
+    def _eval(self, cpu):
+        result = zeros(32)
+        Rm = cpu.r[self.m]
+        if self.width == 4:
+            result[24:32] = Rm[0:8]
+            result[16:24] = Rm[8:16]
+            result[8:16] = Rm[16:24]
+            result[0:8] = Rm[24:32]
+        elif self.width == 2 and not self.signed:
+            result[24:32] = Rm[16:24]
+            result[16:24] = Rm[24:32]
+            result[8:16] = Rm[0:8]
+            result[0:8] = Rm[8:16]
+        elif self.width == 2 and self.signed:
+            result[8:32] = Rm[0:8].sign_extend(24)
+            result[0:8] = Rm[8:16]
+        cpu.r[self.d] = result
+        cpu.pc += self.size
+
+@instr("rev", ByteReverse,   "1011 1010 00 Rm(3) Rd(3)", width=4, signed=False)
+@instr("rev16", ByteReverse, "1011 1010 01 Rm(3) Rd(3)", width=2, signed=False)
+@instr("revsh", ByteReverse, "1011 1010 11 Rm(3) Rd(3)", width=2, signed=True)
+def rev(i, Rm, Rd):
+    i.m = Rm.unsigned
+    i.d = Rd.unsigned
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
+
+@instr("rev.w", ByteReverse,   "11111 010 1 001 Rm1(4)", "1111 Rd(4) 1 000 Rm2(4)", width=4, signed=False)
+@instr("rev16.w", ByteReverse, "11111 010 1 001 Rm1(4)", "1111 Rd(4) 1 001 Rm2(4)", width=2, signed=False)
+@instr("revsh.w", ByteReverse, "11111 010 1 001 Rm1(4)", "1111 Rd(4) 1 011 Rm2(4)", width=2, signed=True)
+def rev(i, Rm1, Rd, Rm2):
+    if Rm1 != Rm2:
+        raise UnpredictableError()
+    i.m = Rm1.unsigned
+    i.d = Rd.unsigned
+    i.operands = [RegisterOperand(i.d), RegisterOperand(i.m)]
 
 # ------------------------------ Move instructions ------------------------------
 
@@ -387,6 +506,36 @@ def cmp2(i, im, imm3, imm8):
     i.n = Rn.unsigned
     i.imm32 = ThumbExpandImm(im % imm3 % imm8)
     i.operands = [RegisterOperand(i.n), ImmediateOperand(i.imm32.unsigned)]
+
+# ------------------------------ Test instructions ------------------------------
+
+class Test(Instruction):
+    def _eval(self, cpu):
+        shifted, carry = Shift_C(cpu.r[self.m], self.shift_t, self.shift_n, cpu.apsr.c)
+        result = cpu.r[self.n] & shifted
+        cpu.apsr.n = result[31]
+        cpu.apsr.z = result.is_zero_bit()
+        cpu.apsr.c = carry
+        cpu.pc += self.size
+
+@instr("tst", Test, "010000 1000 Rm(3) Rn(3)")
+def tst(i, Rm, Rn):
+    i.n = Rn.unsigned
+    i.m = Rm.unsigned
+    i.shift_t = SRType.SRType_None
+    i.shift_n = 0
+    i.operands = [RegisterOperand(i.n), RegisterOperand(i.m)]
+
+@instr("tst.w", Test, "11101 01 0000 1 Rn(4)", "0 imm3(3) 1111 imm2(2) type(2) Rm(4)")
+def tst_w(i, Rn, imm3, imm2, type, Rm):
+    i.n = Rn.unsigned
+    i.m = Rm.unsigned
+    i.shift_t, i.shift_n = DecodeImmShift(type, imm3 % imm2)
+    if i.n in (13, 15) or i.m in (13, 15):
+        raise UnpredictableError()
+    i.operands = [RegisterOperand(i.n), RegisterOperand(i.m)]
+    if i.shift_n != 0:
+        i.operands.append(ShiftRotateOperand(i.shift_t, i.shift_n))
 
 # ------------------------------ Branch instructions ------------------------------
 
@@ -622,6 +771,201 @@ def ldr_str_imm_t2(i, Rt, imm8):
     i.operands = [RegisterOperand(i.t), MemoryAccessOperand(
         RegisterOperand(13), ImmediateOperand(i.imm32.unsigned, hideIfZero=True))]
 
+# ------------------------------ Push/pop instructions ------------------------------
+
+class Push(Instruction):
+    def _eval(self, cpu):
+        address = cpu.sp - (4 * self.registers.bit_count())
+        cpu.sp = address
+        for i in range(15):
+            if self.registers[i]:
+                cpu.write32(address, cpu.r[i])
+                address += 4
+        cpu.pc += self.size
+
+class Pop(Instruction):
+    def _eval(self, cpu):
+        address = cpu.sp
+        cpu.sp += 4 * self.registers.bit_count()
+        for i in range(15):
+            if self.registers[i]:
+                cpu.r[i] = cpu.read32(address)
+                address += 4
+        if self.registers[15]:
+            cpu.pc = cpu.read32(address)
+        else:
+            cpu.pc += self.size
+
+@instr("push", Push, "1011 0 10 M reglist(8)")
+def push_t1(i, M, reglist):
+    i.registers = bit0 % M % '000000' % reglist
+    i.unaligned_allowed = False
+    if i.registers.bit_count() == 0:
+        raise UnpredictableError()
+    i.operands = [ReglistOperand(i.registers)]
+
+@instr("push.w", Push, "11101 00 100 1 0 1101", "0 M 0 reglist(13)")
+def push_t2(i, M, reglist):
+    i.registers = bit0 % M % bit0 % reglsit
+    i.unaligned_allowed = False
+    if i.registers.bit_count() == 0:
+        raise UnpredictableError()
+    i.operands = [ReglistOperand(i.registers)]
+
+@instr("push.w", Push, "11111 00 0 0 10 0 1101", "Rt(4) 1 101 00000100")
+def push_t3(i, Rt):
+    i.registers = zeros(16)
+    i.registers[Rt.unsigned] = 1
+    i.unaligned_allowed = True
+    if Rt.unsigned in (13, 15):
+        raise UnpredictableError()
+    i.operands = [ReglistOperand(i.registers)]
+
+@instr("pop", Pop, "1011 1 10 P reglist(8)")
+def pop_t1(i, P, reglist):
+    i.registers = P % '0000000' % reglist
+    if i.registers.bit_count() == 0:
+        raise UnpredictableError()
+    i.operands = [ReglistOperand(i.registers)]
+
+@instr("pop.w", Pop, "11101 00 010 1 1 1101", "P M 0 reglist(13)")
+def pop_t2(i, P, M, reglist):
+    i.registers = P % M % '0' % reglist
+    if i.registers.bit_count() < 2 or (P == '1' and M == '1'):
+        raise UnpredictableError()
+    i.operands = [ReglistOperand(i.registers)]
+
+@instr("pop.w", Pop, "11111 00 0 0 10 1 1101", "Rt(4) 1 011 00000100")
+def pop_t3(i, Rt):
+    i.registers = zeros(16)
+    i.registers[Rt.unsigned] = 1
+    i.operands = [ReglistOperand(i.registers)]
+
+# ------------------------------ Load/store multiple instructions ------------------------------
+
+class LoadMultiple(Instruction):
+    def _eval(self, cpu):
+        address = cpu.r[self.n]
+        for i in range(15):
+            if self.registers[i]:
+                cpu.r[i] = cpu.read32(address)
+                address += 4
+        if self.registers[15]:
+            cpu.pc = cpu.read32(address)
+        else:
+            cpu.pc += self.size
+        if self.wback and self.registers[self.n] == '0':
+            cpu.r[self.n] += 4 * self.registers.bit_count()
+
+class StoreMultiple(Instruction):
+    def _eval(self, cpu):
+        address = cpu.r[self.n]
+        for i in range(15):
+            if self.registers[i]:
+                # Unimplemented architecture detail:
+                # If write-back and the base register is not the lowest-numbered register in the
+                # list, then the stored base register is unknown.
+                cpu.write32(address, cpu.r[i])
+                address += 4
+        if self.wback:
+            cpu.r[self.n] = address
+        cpu.pc += self.size
+
+@instr("stm", StoreMultiple, "1100 0 Rn(3) reglist(8)")
+@instr("ldm", LoadMultiple,  "1100 1 Rn(3) reglist(8)")
+def stm_ldm_t1(i, Rn, reglist):
+    i.n = Rn.unsigned
+    i.registers = bitstring('00000000') % reglist
+    i.wback = (i._mnemonic == "stm") or (i.registers[i.n] == '0')
+    if i.registers.bit_count() < 1:
+        raise UnpredictableError()
+    i.operands = [RegisterOperand(i.n, wback=i.wback), ReglistOperand(i.registers)]
+
+@instr("stm.w", StoreMultiple, "11101 00 010 W 0 Rn(4)", "0 M 0 reglist(13)")
+def stm_t2(i, W, Rn, M, reglist):
+    i.n = Rn.unsigned
+    i.registers = bit0 % M % bit0 % reglist
+    i.wback = (W == '1')
+    if i.n == 15 or i.registers.bit_count() < 2:
+        raise UnpredictableError()
+    if i.wback and i.registers[i.n] == '1':
+        raise UnpredictableError()
+    i.operands = [RegisterOperand(i.n, wback=i.wback), ReglistOperand(i.registers)]
+
+@instr("ldm.w", LoadMultiple,  "11101 00 010 W 1 Rn(4)", "P M 0 reglist(13)")
+def ldm_t2(i, W, Rn, P, M, reglist):
+    if (W == '1') and (Rn == '1101'):
+        raise DecodeError() # See POP (Thumb)
+    i.n = Rn.unsigned
+    i.registers = P % M % '0' % reglist
+    i.wback = (W == '1')
+    if (i.n == 15) or (i.registers.bit_count() < 2) or (P == '1' and M == '1'):
+        raise UnpredictableError()
+    if i.wback and i.registers[i.n] == '1':
+        raise UnpredictableError()
+    i.operands = [RegisterOperand(i.n, wback=i.wback), ReglistOperand(i.registers)]
+
+# ------------------------------ System instructions ------------------------------
+
+class ChangeProcessorState(Instruction):
+    def _eval(self, cpu):
+        # TODO if privileged
+        if self.enable:
+            if self.affectPri:
+                cpu.write_register(CORE_REGISTER['primask'], 0)
+            if self.affectFault:
+                cpu.write_register(CORE_REGISTER['faultmask'], 0)
+        else:
+            if self.affectPri:
+                cpu.write_register(CORE_REGISTER['primask'], 1)
+            if self.affectFault: # TODO and (cpu.execution_priority() > -1):
+                cpu.write_register(CORE_REGISTER['faultmask'], 1)
+        cpu.pc += self.size
+
+@instr("cps", ChangeProcessorState, "1011 0110 011 im 0 0 I F")
+def cps(i, im, I, F):
+    if I == 0 and F == 0:
+        raise UnpredictableError()
+    i.enable = (im == '0')
+    i._mnemonic += 'ie' if i.enable else 'id'
+    i.affectPri = (I == '1')
+    i.affectFault = (F == '1')
+    i.operands = [CpsOperand(i.affectPri, i.affectFault)]
+
+@instr("bkpt", Instruction, "1011 1110 imm8(8)")
+def bkpt(i, imm8):
+    i.imm32 = imm8.zero_extend(32)
+    i.operands = [ImmediateOperand(i.imm32.unsigned)]
+
+# ------------------------------ Move to/from special register instructions --------------------
+
+class MoveFromSpecial(Instruction):
+    def _eval(self, cpu):
+        cpu.pc += self.size
+
+class MoveToSpecial(Instruction):
+    def _eval(self, cpu):
+        cpu.pc += self.size
+
+@instr("mrs", MoveFromSpecial, "11110 0 1111 1 0 1111", "10 0 0 Rd(4) SYSm(8)")
+def mrs(i, Rd, SYSm):
+    i.d = Rd.unsigned
+    i.SYSm = SYSm
+    if (i.d in (13, 15)) or not (SYSm.unsigned in (0,1,2,3,5,6,7,8,9,16,17,18,19,20)):
+        raise UnpredictableError()
+    i.operands = [RegisterOperand(i.d), SpecialRegisterOperand(SYSm)]
+
+@instr("msr", MoveToSpecial, "11110 0 1110 0 0 Rn(4)", "10 0 0 mask(2) 0 0 SYSm(8)")
+def msr(i, Rn, mask, SYSm):
+    i.n = Rn.unsigned
+    i.SYSm = SYSm
+    i.mask = mask
+    if (mask == '00') or ((mask != '10') and not (SYSm.unsigned in range(4))):
+        raise UnpredictableError()
+    if (i.n in (13, 15)) or not (SYSm.unsigned in (0,1,2,3,5,6,7,8,9,16,17,18,19,20)):
+        raise UnpredictableError()
+    i.operands = [SpecialRegisterOperand(SYSm, mask), RegisterOperand(i.n)]
+
 # ------------------------------ Nop-compatible hint instructions ------------------------------
 
 @instr("nop", Instruction,      "1011 1111 0000 0000")
@@ -640,3 +984,16 @@ def nop(i):
 def barrier(i, option):
     i.operands = [BarrierOperand(option.unsigned)]
 
+# ------------------------------ Misc instructions ------------------------------
+
+# TODO how to handle generating exceptions?
+@instr("udf", Instruction, "1101 1110 imm8(8)")
+@instr("svc", Instruction, "1101 1111 imm8(8)")
+def udf_t1(i, imm8):
+    i.imm32 = imm8.zero_extend(32)
+    i.operands = [ImmediateOperand(i.imm32.unsigned)]
+
+@instr("udf.w", Instruction, "111 10 1111111 imm4(4)", "1 010 imm12(12)")
+def udf_t2(i, imm4, imm12):
+    i.imm32 = (imm4 % imm12).zero_extend(32)
+    i.operands = [ImmediateOperand(i.imm32.unsigned)]

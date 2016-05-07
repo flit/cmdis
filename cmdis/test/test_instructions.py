@@ -34,6 +34,7 @@ from ..model import CpuModel
 from ..mock_cpu import MockCpuModelDelegate
 from ..utilities import (le16_to_bytes, le32_to_bytes)
 from ..formatter import Formatter
+from ..registers import CORE_REGISTER
 import pytest
 import string
 import six
@@ -135,6 +136,22 @@ def reg4bit(request):
 def reg4bit_nopc(request):
     return request.param
 
+@pytest.fixture(params=(range(13)+[14,15]))
+def reg4bit_nosp(request):
+    return request.param
+
+@pytest.fixture(params=(range(13)+[14]))
+def reg4bit_nopc_nosp(request):
+    return request.param
+
+@pytest.fixture(params=range(1, 1<<8))
+def reglist8(request):
+    return request.param
+
+@pytest.fixture(params=range(1, 1<<13))
+def reglist13(request):
+    return request.param
+
 class TestAdd:
     # add r1, sp, #20
     def test_add_sp_pl_imm_t1(self, cpu, fmt):
@@ -156,6 +173,31 @@ class TestAdd:
         sp = cpu.sp.unsigned
         i.execute(cpu)
         assert cpu.sp == sp + 32
+
+    # add rD, sp, rM
+    @pytest.mark.parametrize("Rdm", [2, 11])
+    def test_add_sp_pl_reg_t1(self, cpu, fmt, Rdm):
+        cpu.r[Rdm] = 200
+        i = decoder.decode(fmt_16bit("01000100 {DM} 1101 {Rdm:3}", DM=((Rdm >> 3) & 1), Rdm=Rdm))
+        assert i.m == Rdm
+        assert i.n == 13
+        assert i.d == Rdm
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rdm] == cpu.sp + 200
+
+    # add sp, rM
+    @pytest.mark.parametrize("Rm", [2, 11])
+    def test_add_sp_pl_reg_t2(self, cpu, fmt, Rm):
+        cpu.r[Rm] = 200
+        i = decoder.decode(fmt_16bit("01000100 1 {Rm:4} 101", Rm=Rm))
+        assert i.m == Rm
+        assert i.n == 13
+        assert i.d == 13
+        print(fmt.format(i))
+        sp = cpu.sp
+        i.execute(cpu)
+        assert cpu.sp == sp + 200
 
     # add r1, r2, r3
     def test_add_reg_t1(self, cpu, fmt):
@@ -283,6 +325,65 @@ class TestSub:
         print(fmt.format(i))
         i.execute(cpu)
         assert cpu.r[2] == 73
+
+class TestReverseSubtract:
+    # rsbs r1, r2, #0
+    def test_rsb_t1(self, cpu, fmt):
+        Rn = 2
+        Rd = 1
+        cpu.r[Rn] = bitstring(200)
+        cpu.r[Rd] = bitstring(100)
+        i = decoder.decode(fmt_16bit("010000 1001 {Rn:3} {Rd:3}", Rn=Rn, Rd=Rd))
+        assert i.n == Rn
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == 0 - 200
+
+    # rsb{s}.w r1, r2, #212
+    @pytest.mark.parametrize("S", [0, 1])
+    def test_rsb_t2(self, cpu, fmt, S):
+        Rn = 2
+        Rd = 1
+        cpu.r[Rn] = bitstring(200)
+        cpu.r[Rd] = bitstring(100)
+        im, imm3, imm8 = 0, 0, 212
+        i = decoder.decode(fmt_32bit("11110 {im} 0 1110 {S} {Rn:4}, 0 {imm3:3} {Rd:4} {imm8:8}", im=im, S=S, imm3=imm3, imm8=imm8, Rn=Rn, Rd=Rd))
+        assert i.n == Rn
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == 212 - 200
+
+class TestMultiply:
+    # muls r1, r2, r1
+    def test_mul_t1(self, cpu, fmt):
+        Rdm = 1
+        Rn = 2
+        cpu.r[Rdm] = bitstring(0x0c1)
+        cpu.r[Rn] = bitstring(0x180)
+        i = decoder.decode(fmt_16bit("010000 1101 {Rn:3} {Rdm:3}", Rn=Rn, Rdm=Rdm))
+        assert i.m == Rdm
+        assert i.n == Rn
+        assert i.d == Rdm
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rdm] == (0x0c1 * 0x180)
+
+    # mul r1, r2, r12
+    def test_mul_t2(self, cpu, fmt):
+        Rm = 12
+        Rn = 2
+        Rd = 1
+        cpu.r[Rm] = bitstring(0x0c1)
+        cpu.r[Rn] = bitstring(0x180)
+        i = decoder.decode(fmt_32bit("11111 0110 000 {Rn:4}, 1111 {Rd:4} 0000 {Rm:4}", Rn=Rn, Rd=Rd, Rm=Rm))
+        assert i.m == Rm
+        assert i.n == Rn
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == (0x0c1 * 0x180)
 
 class TestBitOps:
     # ands r1, r4
@@ -415,6 +516,99 @@ class TestShifts:
         print(fmt.format(i))
         i.execute(cpu)
         assert cpu.r[1] == expected
+
+class TestByteReverse:
+    # rev r1, r2
+    @pytest.mark.parametrize(("v", "e"), [
+        (0x12345678, 0x78563412),
+        ])
+    def test_rev_t1(self, cpu, fmt, v, e):
+        Rm = 2
+        Rd = 1
+        cpu.r[Rm] = bitstring(v)
+        i = decoder.decode(fmt_16bit('1011 1010 00 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
+        assert i.m == Rm
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == e
+
+    # rev.w r1, r12
+    @pytest.mark.parametrize(("v", "e"), [
+        (0x12345678, 0x78563412),
+        ])
+    def test_rev_t2(self, cpu, fmt, v, e):
+        Rm = 12
+        Rd = 1
+        cpu.r[Rm] = bitstring(v)
+        i = decoder.decode(fmt_32bit('11111 010 1 001 {Rm1:4}, 1111 {Rd:4} 1 000 {Rm2:4}', Rm1=Rm, Rm2=Rm, Rd=Rd))
+        assert i.m == Rm
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == e
+
+    # rev16 r1, r2
+    @pytest.mark.parametrize(("v", "e"), [
+        (0x12345678, 0x34127856),
+        ])
+    def test_rev16_t1(self, cpu, fmt, v, e):
+        Rm = 2
+        Rd = 1
+        cpu.r[Rm] = bitstring(v)
+        i = decoder.decode(fmt_16bit('1011 1010 01 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
+        assert i.m == Rm
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == e
+
+    # rev16.w r1, r12
+    @pytest.mark.parametrize(("v", "e"), [
+        (0x12345678, 0x34127856),
+        ])
+    def test_rev16_t2(self, cpu, fmt, v, e):
+        Rm = 12
+        Rd = 1
+        cpu.r[Rm] = bitstring(v)
+        i = decoder.decode(fmt_32bit('11111 010 1 001 {Rm1:4}, 1111 {Rd:4} 1 001 {Rm2:4}', Rm1=Rm, Rm2=Rm, Rd=Rd))
+        assert i.m == Rm
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == e
+
+    # revsh r1, r2
+    @pytest.mark.parametrize(("v", "e"), [
+        (0x12345678, 0x00007856),
+        (0x000056f8, 0xfffff856),
+        ])
+    def test_revsh_t1(self, cpu, fmt, v, e):
+        Rm = 2
+        Rd = 1
+        cpu.r[Rm] = bitstring(v)
+        i = decoder.decode(fmt_16bit('1011 1010 11 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
+        assert i.m == Rm
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == e
+
+    # revsh.w r1, r12
+    @pytest.mark.parametrize(("v", "e"), [
+        (0x12345678, 0x00007856),
+        (0x000056f8, 0xfffff856),
+        ])
+    def test_revsh_t2(self, cpu, fmt, v, e):
+        Rm = 12
+        Rd = 1
+        cpu.r[Rm] = bitstring(v)
+        i = decoder.decode(fmt_32bit('11111 010 1 001 {Rm1:4}, 1111 {Rd:4} 1 011 {Rm2:4}', Rm1=Rm, Rm2=Rm, Rd=Rd))
+        assert i.m == Rm
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == e
 
 class TestAdr:
     # adr r3, label
@@ -619,14 +813,21 @@ class TestMove:
         i.execute(cpu)
         assert cpu.r[12] == 0x1234
 
-    # mov.w r3, #7
-#     def test_mov_t1(self, cpu, fmt):
-#         i = decoder.decode(le16_to_bytes(0b11110))
-#         assert i.imm32 == 7
-#         assert i.d == 1
-#         print(fmt.format(i))
-#         i.execute(cpu)
-#         assert cpu.r[3] == 7
+    # mvns r1, r7
+    @pytest.mark.parametrize(("v", "e"), [
+            (0, 0xffffffff),
+            (0xffffffff, 0),
+        ])
+    def test_mvn_reg_t1(self, cpu, fmt, v, e):
+        Rd = 1
+        Rm = 7
+        cpu.r[Rm] = v
+        i = decoder.decode(fmt_16bit('010000 1111 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
+        assert i.m == Rm
+        assert i.d == Rd
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.r[Rd] == e
 
 class TestCompare:
     # cmp r3, #7
@@ -639,6 +840,52 @@ class TestCompare:
         i.execute(cpu)
         assert cpu.apsr.z == 1
         assert cpu.apsr.n == 0
+
+class TestTest:
+    # tst r3, r7
+    @pytest.mark.parametrize(("nv", "mv", "n", "z", "c"), [
+            (0, 0, 0, 1, 0),
+            (0, 1, 0, 1, 0),
+            (1, 1, 0, 0, 0),
+            (0xffffffff, 0xffffffff, 1, 0, 0),
+        ])
+    def test_tst_t1(self, cpu, fmt, nv, mv, n, z, c):
+        Rm = 7
+        Rn = 3
+        cpu.r[Rn] = bitstring(nv)
+        cpu.r[Rm] = bitstring(mv)
+        i = decoder.decode(fmt_16bit('010000 1000 {Rm:3} {Rn:3}', Rm=Rm, Rn=Rn))
+        assert i.m == Rm
+        assert i.n == Rn
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.apsr.n == n
+        assert cpu.apsr.z == z
+        assert cpu.apsr.c == c
+
+    # tst.w r3, r7
+    @pytest.mark.parametrize(("nv", "mv", "type", "shft", "n", "z", "c"), [
+            (0, 0, 0, 0, 0, 1, 0),
+            (0, 1, 0, 0, 0, 1, 0),
+            (1, 1, 0, 0, 0, 0, 0),
+            (8, 1, 0, 3, 0, 0, 0),
+            (1, 8, 1, 3, 0, 0, 0),
+            (0xffffffff, 0xffffffff, 0, 0, 1, 0, 0),
+        ])
+    def test_tst_t2(self, cpu, fmt, nv, mv, type, shft, n, z, c):
+        Rm = 7
+        Rn = 3
+        imm3, imm2 = bitstring(shft)[2:5], bitstring(shft)[0:2]
+        cpu.r[Rn] = bitstring(nv)
+        cpu.r[Rm] = bitstring(mv)
+        i = decoder.decode(fmt_32bit('11101 01 0000 1 {Rn:4}, 0 {imm3:3} 1111 {imm2:2} {type:2} {Rm:4}', Rm=Rm, Rn=Rn, imm3=imm3, imm2=imm2, type=type))
+        assert i.m == Rm
+        assert i.n == Rn
+        print(fmt.format(i))
+        i.execute(cpu)
+        assert cpu.apsr.n == n
+        assert cpu.apsr.z == z
+        assert cpu.apsr.c == c
 
 class TestBranch:
     # beq .+48
@@ -929,12 +1176,12 @@ class TestLoad:
 
     # ldrsb.w r3, [pc, #x]
     @pytest.mark.parametrize(("U", "imm12", "addr", "v", "e"), [
-            (1, 4, 0x8008, 0x12, 0x00000012),  # ldrsb.w r3, [pc, #4]
-            (1, 4, 0x8008, 0xf6, 0xfffffff6),  # ldrsb.w r3, [pc, #4]
-            (0, 16, 0x7ff4, 0x12, 0x00000012), # ldrsb.w r3, [pc, #-16]
-            (0, 16, 0x7ff4, 0xf6, 0xfffffff6), # ldrsb.w r3, [pc, #-16]
+            (1, 4, 0x8008, 0x14, 0x00000014),  # ldrsb.w r3, [pc, #4]
+            (1, 4, 0x8008, 0xf4, 0xfffffff4),  # ldrsb.w r3, [pc, #4]
+            (0, 16, 0x7ff4, 0x14, 0x00000014), # ldrsb.w r3, [pc, #-16]
+            (0, 16, 0x7ff4, 0xf4, 0xfffffff4), # ldrsb.w r3, [pc, #-16]
         ])
-    def test_ldrsh_literal_w(self, cpu, fmt, U, imm12, addr, v, e, reg4bit_nopc):
+    def test_ldrsb_literal_w(self, cpu, fmt, U, imm12, addr, v, e, reg4bit_nopc):
         cpu.write8(addr, v) # write literal to pc + offset
         cpu.r[reg4bit_nopc] = 0xa5a5a5a5
         i = decoder.decode(fmt_32bit('11111 00 1 {U} 00 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
@@ -1161,6 +1408,246 @@ class TestStore:
         i.execute(cpu)
         assert cpu.read8(addr + imm) == 0x78
 
+class TestPush:
+    def check_push(self, cpu, origSp, reglist):
+        addr = origSp
+        assert cpu.sp == origSp - 4 * reglist.bit_count()
+        for i in range(15, -1, -1):
+            if reglist[i]:
+                addr -= 4
+                assert cpu.read32(addr) == cpu.r[i]
+
+    # push {r0,r1...r7}
+    @pytest.mark.parametrize("m", [0, 1])
+    def test_push_t1(self, cpu, fmt, m):
+        for i in range(8):
+            cpu.r[i] = i
+        cpu.lr = 14
+        reglist = bitstring('0000000011111001')
+        reglist[14] = m
+        i = decoder.decode(fmt_16bit('1011 0 10 {M} {reglist:8}', M=reglist[14], reglist=reglist[0:8]))
+        print(fmt.format(i))
+        sp = cpu.sp
+        i.execute(cpu)
+        self.check_push(cpu, sp, reglist)
+
+    # push.w {r0,r1...r7}
+    @pytest.mark.parametrize("m", [0, 1])
+    def test_push_t2(self, cpu, fmt, m):
+        for i in range(15):
+            cpu.r[i] = i
+        cpu.sp = 0x20004000
+        reglist = bitstring('0000001111101011')
+        reglist[14] = m
+        i = decoder.decode(fmt_32bit('11101 00 100 1 0 1101, 0 {M} 0 {reglist:13}', M=reglist[14], reglist=reglist[0:13]))
+        print(fmt.format(i))
+        sp = cpu.sp
+        i.execute(cpu)
+        self.check_push(cpu, sp, reglist)
+
+    # push.w {r0}
+    def test_push_t2(self, cpu, fmt, reg4bit_nopc_nosp):
+        for i in range(15):
+            cpu.r[i] = i
+        cpu.sp = 0x20004000
+        reglist = zeros(16)
+        reglist[reg4bit_nopc_nosp] = 1
+        i = decoder.decode(fmt_32bit('11111 00 0 0 10 0 1101, {Rt:4} 1 101 00000100', Rt=reglist.lowest_set_bit()))
+        print(fmt.format(i))
+        sp = cpu.sp
+        i.execute(cpu)
+        self.check_push(cpu, sp, reglist)
+
+class TestPop:
+    def setup_stack(self, cpu, reglist):
+        addr = cpu.sp
+        for i in range(16):
+            if reglist[i]:
+                cpu.write32(addr, i)
+                addr += 4
+
+    def check_pop(self, cpu, origSp, reglist):
+        addr = origSp
+        assert cpu.sp == origSp + 4 * reglist.bit_count()
+        for i in range(16):
+            if reglist[i]:
+                assert cpu.read32(addr) == cpu.r[i]
+                addr += 4
+
+    # pop {r0,r1...r7}
+    @pytest.mark.parametrize("p", [0, 1])
+    def test_pop_t1(self, cpu, fmt, p):
+        reglist = bitstring('0000000011111001')
+        reglist[15] = p
+        self.setup_stack(cpu, reglist)
+        i = decoder.decode(fmt_16bit('1011 1 10 {P} {reglist:8}', P=reglist[15], reglist=reglist[0:8]))
+        print(fmt.format(i))
+        sp = cpu.sp
+        i.execute(cpu)
+        self.check_pop(cpu, sp, reglist)
+
+    # pop.w {r0,r1...r7}
+    @pytest.mark.parametrize(("p", "m"), [
+        (0, 0),
+        (0, 1),
+        (1, 0),
+        ])
+    def test_pop_t2(self, cpu, fmt, m, p):
+        reglist = bitstring('0000001111101011')
+        reglist[14] = m
+        reglist[15] = p
+        self.setup_stack(cpu, reglist)
+        i = decoder.decode(fmt_32bit('11101 00 010 1 1 1101, {P} {M} 0 {reglist:13}', P=reglist[15], M=reglist[14], reglist=reglist[0:13]))
+        print(fmt.format(i))
+        sp = cpu.sp
+        i.execute(cpu)
+        self.check_pop(cpu, sp, reglist)
+
+    # pop.w {r0}
+    def test_pop_t3(self, cpu, fmt, reg4bit_nosp):
+        reglist = zeros(16)
+        reglist[reg4bit_nosp] = 1
+        self.setup_stack(cpu, reglist)
+        i = decoder.decode(fmt_32bit('11111 00 0 0 10 1 1101, {Rt:4} 1 011 00000100', Rt=reglist.lowest_set_bit()))
+        print(fmt.format(i))
+        sp = cpu.sp
+        i.execute(cpu)
+        self.check_pop(cpu, sp, reglist)
+
+class TestStoreMultiple:
+    def check_stm(self, cpu, Rn, wback, origAddr, reglist):
+        addr = origAddr
+        assert not wback or (cpu.r[Rn] == origAddr + 4 * reglist.bit_count())
+        for i in range(16):
+            if reglist[i]:
+                assert cpu.read32(addr) == cpu.r[i]
+                addr += 4
+
+    def setup_regs(self, cpu):
+        for i in range(15):
+            if i != 13:
+                cpu.r[i] = i
+
+    # stm r2!, {r0,r1...r7}
+    def test_stm_t1(self, cpu, fmt):
+        self.setup_regs(cpu)
+        Rn = 2
+        reglist = bitstring('0000000011111001')
+        cpu.r[Rn] = 0x20001000
+        i = decoder.decode(fmt_16bit('1100 0 {Rn:3} {reglist:8}', Rn=Rn, reglist=reglist[0:8]))
+        print(fmt.format(i))
+        origAddr = cpu.r[Rn]
+        i.execute(cpu)
+        self.check_stm(cpu, Rn, True, origAddr, reglist)
+
+    # stm.w r2{!}, {r0,r1...r7}
+    @pytest.mark.parametrize(("W", "M"), [
+            (0, 0),
+            (0, 1),
+            (1, 0),
+            (1, 1),
+        ])
+    def test_stm_t2(self, cpu, fmt, W, M):
+        self.setup_regs(cpu)
+        Rn = 2
+        reglist = bitstring('0000001111101011')
+        reglist[14] = M
+        cpu.r[Rn] = 0x20001000
+        i = decoder.decode(fmt_32bit('11101 00 010 {W} 0 {Rn:4}, 0 {M} 0 {reglist:13}', Rn=Rn, W=W, M=reglist[14], reglist=reglist[0:13]))
+        print(fmt.format(i))
+        origAddr = cpu.r[Rn]
+        i.execute(cpu)
+        self.check_stm(cpu, Rn, W, origAddr, reglist)
+
+class TestLoadMultiple:
+    def setup_stack(self, cpu, Rn, reglist):
+        addr = cpu.r[Rn]
+        for i in range(16):
+            if reglist[i]:
+                if i in (13, 15):
+                    cpu.write32(addr, cpu.r[i])
+                else:
+                    cpu.write32(addr, i)
+                addr += 4
+
+    def check_ldm(self, cpu, Rn, wback, origAddr, reglist):
+        addr = origAddr
+        assert not wback or (cpu.r[Rn] == origAddr + 4 * reglist.bit_count())
+        for i in range(16):
+            if reglist[i]:
+                assert cpu.read32(addr) == cpu.r[i]
+                addr += 4
+
+    # ldm r3, {r0,r1...r7}
+    @pytest.mark.parametrize("W", [0, 1])
+    def test_ldm_t1(self, cpu, fmt, W):
+        Rn = 3
+        reglist = bitstring('0000000011111001')
+        reglist[Rn] = 0 if W else 1
+        cpu.r[Rn] = 0x20001000
+        self.setup_stack(cpu, Rn, reglist)
+        i = decoder.decode(fmt_16bit('1100 1 {Rn:3} {reglist:8}', Rn=Rn, reglist=reglist[0:8]))
+        print(fmt.format(i))
+        origAddr = cpu.r[Rn]
+        i.execute(cpu)
+        self.check_ldm(cpu, Rn, W, origAddr, reglist)
+
+    # ldm.w r2{!}, {r0,r1...r7}
+    @pytest.mark.parametrize(("W", "P", "M"), [
+            (0, 0, 0),
+            (0, 0, 1),
+            (0, 1, 0),
+            (1, 0, 0),
+            (1, 0, 1),
+            (1, 1, 0),
+        ])
+    def test_ldm_t2(self, cpu, fmt, W, P, M):
+        Rn = 2
+        reglist = bitstring('0000001111101011')
+        reglist[15] = P
+        reglist[14] = M
+        cpu.r[Rn] = 0x20001000
+        self.setup_stack(cpu, Rn, reglist)
+        i = decoder.decode(fmt_32bit('11101 00 010 {W} 1 {Rn:4}, {P} {M} 0 {reglist:13}', Rn=Rn, W=W, P=reglist[15], M=reglist[14], reglist=reglist[0:13]))
+        print(fmt.format(i))
+        origAddr = cpu.r[Rn]
+        i.execute(cpu)
+        self.check_ldm(cpu, Rn, W, origAddr, reglist)
+
+class TestCps:
+    @pytest.mark.parametrize(("enable", "I", "F"), [
+            (False, 1, 0),
+            (False, 0, 1),
+            (False, 1, 1),
+            (True, 1, 0),
+            (True, 0, 1),
+            (True, 1, 1),
+        ])
+    def test_cps(self, cpu, fmt, enable, I, F):
+        im = 0 if enable else 1
+        inv_im = 0 if im else 1
+        cpu.write_register(CORE_REGISTER['primask'], inv_im)
+        cpu.write_register(CORE_REGISTER['faultmask'], inv_im)
+        i = decoder.decode(fmt_16bit('1011 0110 011 {im} 0 0 {I} {F}', im=im, I=I, F=F))
+        print(fmt.format(i))
+        i.execute(cpu)
+        if I:
+            assert cpu.read_register(CORE_REGISTER['primask']) == im
+        else:
+            assert cpu.read_register(CORE_REGISTER['primask']) == inv_im
+        if F:
+            assert cpu.read_register(CORE_REGISTER['faultmask']) == im
+        else:
+            assert cpu.read_register(CORE_REGISTER['faultmask']) == inv_im
+
+class TestBkpt:
+    @pytest.mark.parametrize("imm", [0, 0xab])
+    def test_bkpt(self, cpu, fmt, imm):
+        i = decoder.decode(fmt_16bit('1011 1110 {imm8:8}', imm8=imm))
+        assert i.imm32 == imm
+        print(fmt.format(i))
+        i.execute(cpu)
+
 class TestNopHints:
     @pytest.mark.parametrize("x", [0, 1, 2, 3, 4])
     def test_mov_reg_t3_1(self, cpu, fmt, x):
@@ -1182,4 +1669,57 @@ class TestBarriers:
         print(fmt.format(i))
         i.execute(cpu)
 
+class TestSpecialRegister:
+    @pytest.fixture(params=[
+            0, # APSR
+            1, # IAPSR
+            2, # EAPSR
+            3, # XPSR
+            5, # IPSR
+            6, # EPSR
+            7, # IEPSR
+            8, # MSP
+            9, # PSP
+            16, # PRIMASK
+            17, # BASEPRI
+            18, # BASEPRI_MAX
+            19, # FAULTMASK
+            20, # CONTROL
+        ])
+    def SYSm(self, request):
+        return request.param
+
+    # mrs r3, <spec>
+    def test_mrs(self, cpu, fmt, SYSm):
+        Rd = 3
+        i = decoder.decode(fmt_32bit('11110 0 1111 1 0 1111, 10 0 0 {Rd:4} {SYSm:8}', Rd=Rd, SYSm=SYSm))
+        print(fmt.format(i))
+#         i.execute(cpu)
+
+    # msr <spec>, r3
+    def test_msr(self, cpu, fmt, SYSm):
+        Rn = 3
+        mask = 2 # _nzcvq
+        i = decoder.decode(fmt_32bit('11110 0 1110 0 0 {Rn:4}, 10 0 0 {mask:2} 0 0 {SYSm:8}', Rn=Rn, mask=mask, SYSm=SYSm))
+        print(fmt.format(i))
+#         i.execute(cpu)
+
+class TestMisc:
+    def test_svc_t1(self, cpu, fmt):
+        imm8 = 72
+        i = decoder.decode(fmt_16bit('1101 1111 {imm8:8}', imm8=imm8))
+        print(fmt.format(i))
+#         i.execute(cpu)
+
+    def test_udf_t1(self, cpu, fmt):
+        imm8 = 60
+        i = decoder.decode(fmt_16bit('1101 1110 {imm8:8}', imm8=imm8))
+        print(fmt.format(i))
+#         i.execute(cpu)
+
+    def test_udf_t2(self, cpu, fmt):
+        imm = bitstring(1234)
+        i = decoder.decode(fmt_32bit('111 10 1111111 {imm4:4}, 1 010 {imm12:12}', imm4=imm[12:16], imm12=imm[0:12]))
+        print(fmt.format(i))
+#         i.execute(cpu)
 

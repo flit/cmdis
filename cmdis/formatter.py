@@ -36,11 +36,46 @@ class Operand(object):
         raise NotImplemented()
 
 class RegisterOperand(Operand):
-    def __init__(self, reg):
+    def __init__(self, reg, wback=False):
         self._reg = reg
+        self._wback = wback
 
     def format(self, formatter):
-        return CORE_REGISTER_NAMES[self._reg]
+        result = CORE_REGISTER_NAMES[self._reg]
+        if self._wback:
+            result += "!"
+        return result
+
+class ReglistOperand(Operand):
+    def __init__(self, reglist):
+        self._reglist = reglist
+
+    def format(self, formatter):
+        regs = []
+        startRange = -1
+        endRange = -1
+
+        def add_reg_range(regs):
+            if startRange != -1:
+                if startRange == endRange:
+                    regs.append(CORE_REGISTER_NAMES[startRange])
+                else:
+                    startReg = CORE_REGISTER_NAMES[startRange]
+                    endReg = CORE_REGISTER_NAMES[endRange]
+                    regs.append("%s-%s" % (startReg, endReg))
+
+        for n, b in enumerate(self._reglist):
+            if b:
+                if startRange == -1:
+                    startRange = n
+                endRange = n
+            else:
+                add_reg_range(regs)
+                startRange = -1
+                endRange = -1
+        add_reg_range(regs)
+
+        return '{' + ','.join(regs) + '}'
 
 class ImmediateOperand(Operand):
     def __init__(self, imm, hideIfZero=False):
@@ -112,6 +147,68 @@ class MemoryAccessOperand(Operand):
         result = "[" + ", ".join(formattedOperands) + "]"
         if self._wback:
             result += "!"
+        return result
+
+class CpsOperand(Operand):
+    def __init__(self, affectPri, affectFault):
+        self._affectPri = affectPri
+        self._affectFault = affectFault
+
+    def format(self, formatter):
+        result = ""
+        if self._affectPri:
+            result += "i"
+        if self._affectFault:
+            result += "f"
+        return result
+
+class SpecialRegisterOperand(Operand):
+    def __init__(self, spec, mask=-1):
+        self._spec = spec
+        self._mask = mask
+
+    def format(self, formatter):
+        result = ""
+        upper = self._spec[3:8]
+        lower = self._spec[0:3]
+        if upper == '00000':
+            if lower == '000':
+                result = "APSR"
+            elif lower == '001':
+                result = "IAPSR"
+            elif lower == '010':
+                result = "EAPSR"
+            elif lower == '011':
+                result = "XPSR"
+            elif lower == '101':
+                result = "IPSR"
+            elif lower == '110':
+                result = "EPSR"
+            elif lower == '111':
+                result = "IEPSR"
+            if lower < 4 and self._mask != -1:
+                if self._mask == '10':
+                    result += '_nzcvq'
+                elif self._mask == '01':
+                    result += '_g'
+                elif self._mask == '11':
+                    result += '_nzcvqg'
+        elif upper == '00001':
+            if lower == '000':
+                result = "MSP"
+            elif lower == '001':
+                result = "PSP"
+        elif upper == '00010':
+            if lower == '000':
+                result = "PRIMASK"
+            elif lower == '001':
+                result = "BASEPRI"
+            elif lower == '010':
+                result = "BASEPRI_MAX"
+            elif lower == '011':
+                result = "FAULTMASK"
+            elif lower == '100':
+                result = "CONTROL"
         return result
 
 class Formatter(object):

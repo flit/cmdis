@@ -86,6 +86,11 @@ class DecodeError(Exception):
     pass
 
 ##
+# @brief Effects of an instruction encoding are unpredictable.
+class UnpredictableError(Exception):
+    pass
+
+##
 # @brief Interface for decoding instruction byte sequences.
 #
 # Tree-based instruction decoding algorithm borrowed from Amoco project by Axel Tillequin
