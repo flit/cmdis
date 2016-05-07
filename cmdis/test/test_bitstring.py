@@ -27,7 +27,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from ..bitstring import bitstring
+from ..bitstring import *
 
 class TestBitstring:
     def test_init_empty(self):
@@ -211,6 +211,37 @@ class TestBitstring:
         assert bitstring('000100') == bitstring('000100')
         assert bitstring('000100') == 4
 
+        assert not (bitstring('0') == 1)
+        assert not (bitstring('1') == 0)
+        assert not (bitstring('0') == bitstring('1'))
+        assert not (bitstring('1') == bitstring('0'))
+        assert not (bitstring('0') == '1')
+        assert not (bitstring('1') == '0')
+        assert not (bitstring('1010') == '1110')
+        assert not (bitstring('000100') == bitstring('001000'))
+        assert not (bitstring('000100') == 8)
+
+    def test_neq(self):
+        assert bitstring('0') != 1
+        assert bitstring('1') != 0
+        assert bitstring('0') != bitstring('1')
+        assert bitstring('1') != bitstring('0')
+        assert bitstring('0') != '1'
+        assert bitstring('1') != '0'
+        assert bitstring('1010') != '1110'
+        assert bitstring('000100') != bitstring('001000')
+        assert bitstring('000100') != 28
+
+        assert not (bitstring('0') != 0)
+        assert not (bitstring('1') != 1)
+        assert not (bitstring('0') != bitstring('0'))
+        assert not (bitstring('1') != bitstring('1'))
+        assert not (bitstring('0') != '0')
+        assert not (bitstring('1') != '1')
+        assert not (bitstring('1010') != '1010')
+        assert not (bitstring('000100') != bitstring('000100'))
+        assert not (bitstring('000100') != 4)
+
     def test_append(self):
         b = bitstring('1010')
         c = b % bitstring('111')
@@ -302,6 +333,30 @@ class TestBitstring:
         assert x[0:1] == '1'
         assert x[0:x.width] == '11001'
         assert x[2:5] == '110'
+
+    def test_setitem(self):
+        x = bitstring('11001')
+        assert x[0] == 1
+        x[0] = 0
+        assert x[0] == 0
+        x[3] = 1
+        assert x[3] == bit1
+        x[1] = 1
+        assert x[1] == '1'
+        assert x == '11010'
+        x[-1] = 0
+        assert x == '01010'
+        x[-3] = 1
+        assert x == '01110'
+
+    def test_set_slice(self):
+        x = bitstring('11001')
+        x[0:2] = '10'
+        assert x == '11010'
+        x[2:4] = bitstring('00')
+        assert x == '10010'
+        x[1:4] = 7
+        assert x == '11110'
 
     def test_bytes(self):
         x = bitstring(0x563924)

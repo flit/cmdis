@@ -28,12 +28,10 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import six
-from functools import total_ordering
 import collections
 
 ##
 # @brief Variable length bit string.
-@total_ordering
 class bitstring(object):
     __slots__ = ("_width", "_value", "_mask")
 
@@ -147,6 +145,9 @@ class bitstring(object):
             return (self._width == other._width and self._value == other._value) \
                 if isinstance(other, bitstring) else NotImplemented
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __lt__(self, other):
         if isinstance(other, six.integer_types):
             # If other is negative then compare the signed value of this bitstring.
@@ -160,6 +161,15 @@ class bitstring(object):
             return ((self._width < other._width) if (self._value == other._value) \
                 else (self._value < other._value)) \
                 if isinstance(other, bitstring) else NotImplemented
+
+    def __le__(self, other):
+        return self.__eq__(other) or self.__lt__(other)
+
+    def __gt__(self, other):
+        return not self.__le__(other)
+
+    def __ge__(self, other):
+        return not self.__lt__(other)
 
     def __nonzero__(self):
         return self._value != 0
@@ -193,7 +203,7 @@ class bitstring(object):
         return self._value == 0
 
     def is_ones(self):
-        return self.bit_count() == self._width
+        return self._value == self._mask
 
     def is_zero_bit(self):
         return bitstring('1') if self.is_zero() else bitstring('0')
@@ -230,6 +240,21 @@ class bitstring(object):
             raise TypeError("index must be an integer or slice")
 
     def __setitem__(self, key, value):
+        if isinstance(key, slice):
+            start, stop, step = key.indices(self._width)
+            if step != 1:
+                raise ValueError("cannot set slice with step != 1")
+            if isinstance(value, six.integer_types):
+                value = bitstring(value)
+            elif isinstance(value, six.string_types):
+                value = bitstring(value)
+            elif not isinstance(value, bitstring):
+                raise TypeError("value must be a bitstring, integer, or string")
+            mask = (((1 << (stop - start)) - 1) << start)
+            self._value &= ~mask
+            self._value |= (value.unsigned << start) & mask
+            return
+
         if not isinstance(key, six.integer_types):
             raise TypeError("index must be an integer")
         if key >= self._width:
@@ -357,6 +382,31 @@ class bitstring(object):
         if isinstance(other, six.string_types):
             other = bitstring(other).unsigned
         return bitstring(self._value | other, width)
+
+    def __radd__(self, other):
+        return bitstring(other).__add__(self)
+
+    def __rsub__(self, other):
+        return bitstring(other).__sub__(self)
+
+    def __rmul__(self, other):
+        return bitstring(other).__mul__(self)
+
+    def __rfloordiv__(self, other):
+        return bitstring(other).__floordiv__(self)
+
+    def __rmod__(self, other):
+        print "rmod called"
+        return bitstring(other).__mod__(self)
+
+    def __rand__(self, other):
+        return bitstring(other).__and__(self)
+
+    def __rxor__(self, other):
+        return bitstring(other).__xor__(self)
+
+    def __ror__(self, other):
+        return bitstring(other).__or__(self)
 
     def __iadd__(self, other):
         if isinstance(other, bitstring):
