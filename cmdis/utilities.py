@@ -59,6 +59,50 @@ def le16_to_bytes(value, offset=0):
 def le32_to_bytes(value, offset=0):
     return bytearray((value >> (i * 8)) & 0xff for i in range(4))
 
+def byteListToU32leList(data):
+    """Convert a list of bytes to a list of 32-bit integers (little endian)"""
+    res = []
+    for i in range(len(data) / 4):
+        res.append(data[i * 4 + 0] |
+                   data[i * 4 + 1] << 8 |
+                   data[i * 4 + 2] << 16 |
+                   data[i * 4 + 3] << 24)
+    return res
+
+def u32leListToByteList(data):
+    """Convert a word array into a byte array"""
+    res = []
+    for x in data:
+        res.append((x >> 0) & 0xff)
+        res.append((x >> 8) & 0xff)
+        res.append((x >> 16) & 0xff)
+        res.append((x >> 24) & 0xff)
+    return res
+
+def u16leListToByteList(data):
+    """Convert a halfword array into a byte array"""
+    byteData = []
+    for h in data:
+        byteData.extend([h & 0xff, (h >> 8) & 0xff])
+    return byteData
+
+def byteListToU16leList(byteData):
+    """Convert a byte array into a halfword array"""
+    data = []
+    for i in range(0, len(byteData), 2):
+        data.append(byteData[i] | (byteData[i + 1] << 8))
+    return data
+
+def u32BEToFloat32BE(data):
+    """Convert a 32-bit int to an IEEE754 float"""
+    d = struct.pack(">I", data)
+    return struct.unpack(">f", d)[0]
+
+def float32beToU32be(data):
+    """Convert an IEEE754 float to a 32-bit int"""
+    d = struct.pack(">f", data)
+    return struct.unpack(">I", d)[0]
+
 ## @brief Returns an integer with all bits set up to but not including bit n.
 #
 # If n == 4, then 0xf will be returned.

@@ -40,7 +40,7 @@ setup(
     description="Cortex-M disassembler",
     long_description='',
     author="Chris Reed",
-    author_email="chris.reed@nxp.com",
+    author_email="flit@me.com",
     url='https://github.com/flit/cmdis',
     license="BSD 3-Clause",
     install_requires=["enum34"],
@@ -49,6 +49,11 @@ setup(
         "License :: OSI Approved :: BSD License",
         "Programming Language :: Python",
     ],
+    entry_points={
+        'console_scripts': [
+            'cmdis-sim = cmdis.simtool:main',
+        ],
+    },
     use_2to3=True,
     packages=find_packages(),
 )
