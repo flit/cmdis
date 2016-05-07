@@ -50,7 +50,25 @@ class MockCpuModelDelegate(CpuModelDelegate):
         return self._regs[reg]
 
     def write_register(self, reg, value):
+        # Special restrictions for CONTROL register writes.
+        if reg in (CORE_REGISTER['faultmask'], CORE_REGISTER['primask']):
+            value = value & 1
+        elif reg == CORE_REGISTER['basepri']:
+            value = value & 0xff
+        elif reg in (CORE_REGISTER['sp'], CORE_REGISTER['msp'], CORE_REGISTER['psp']):
+            value = value & ~3
         self._regs[reg] = value
+
+        # Mirror SP writes to PSP/MSP and vice versa.
+        spsel = (CORE_REGISTER['control'] & 2) >> 1
+        if reg == CORE_REGISTER['sp']:
+            if spsel:
+                self._regs[CORE_REGISTER['psp']] = value
+            else:
+                self._regs[CORE_REGISTER['msp']] = value
+        elif (reg == CORE_REGISTER['msp'] and spsel == 0) or \
+                (reg == CORE_REGISTER['psp'] and spsel == 1):
+            self._regs[CORE_REGISTER['sp']] = value
 
     def _find_mem(self, addr):
         for m in self._mem:
