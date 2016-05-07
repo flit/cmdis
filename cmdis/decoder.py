@@ -56,6 +56,10 @@ class Instruction(object):
     def address(self):
         return self._address
 
+    @address.setter
+    def address(self, value):
+        self._address = value
+
     @property
     def bytes(self):
         return bytearray((self._word >> (8 * i)) & 0xff for i in range(self.size))
@@ -116,7 +120,7 @@ class DecoderTree(object):
         self._tree16 = self._build_tree(self._decoders16)
         self._tree32 = self._build_tree(self._decoders32)
 
-    def decode(self, data, dataAddress=None):
+    def decode(self, data, dataAddress=0):
         # Figure out if this is a 16-bit or 32-bit instruction and select the
         # appropriate decoder tree.
         assert len(data) >= 2
@@ -143,7 +147,7 @@ class DecoderTree(object):
                 for d in node.children:
                     try:
                         if d.check(word):
-                            return d.decode(word)
+                            return d.decode(word, address=dataAddress)
                     except DecodeError:
                         continue
 
@@ -227,7 +231,7 @@ class Decoder(object):
     def check(self, word):
         return (word & self._mask) == self._match
 
-    def decode(self, word):
+    def decode(self, word, address=0):
         # Read bitfields from the instruction.
         attrs = {}
         for n,f in self._attrs.iteritems():
@@ -235,6 +239,7 @@ class Decoder(object):
 
         # Create instruction object.
         i = self._klass(self._mnemonic, word, self.is32bit)
+        i.address = address
         for k, v in self.args.iteritems():
             setattr(i, k, v)
 

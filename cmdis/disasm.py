@@ -37,8 +37,15 @@ class Disassembler(object):
     def __init__(self):
         pass
 
-    def disasm(self, data):
-        pass
+    def disasm(self, data, address=0):
+        length = len(data)
+        endAddress = address + length
+        offset = 0
+        while address < endAddress:
+            i = decoder.decode(data[offset:], address)
+            yield i
+            address += i.size
+            offset += i.size
 
 
 
