@@ -97,4 +97,14 @@ class MockCpuModelDelegate(CpuModelDelegate):
             elif size == 32:
                 mem.data[offset:offset+4] = le32_to_bytes(value)
 
+    def write_memory_block(self, addr, data):
+        mem, offset = self._find_mem(addr)
+        if mem:
+            mem.data[offset:offset+len(data)] = data
+
+    def read_memory_block(self, addr, length):
+        mem, offset = self._find_mem(addr)
+        if mem:
+            return bytearray(mem.data[offset:offset+length])
+
 

@@ -245,6 +245,14 @@ class CpuModel(object):
     def write8(self, addr, value):
         return self.write_memory(addr, value, 8)
 
+    def write_memory_block(self, addr, data):
+        if self._delegate is not None:
+            self._delegate.write_memory_block(addr, data)
+
+    def read_memory_block(self, addr, length):
+        if self._delegate is not None:
+            return self._delegate.read_memory_block(addr, length)
+
     def dump(self):
         print("r0=%08x    r4=%08x    r8 =%08x   r12=%08x" % (
             self.r[0], self.r[4], self.r[8], self.r[12]))
