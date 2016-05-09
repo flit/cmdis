@@ -249,6 +249,8 @@ class SimConsole(object):
             traceback.print_exc()
         except ToolError as e:
             print "Error:", e
+        except ToolExitException:
+            raise
         except Exception as e:
             print "Unexpected exception:", e
             traceback.print_exc()
