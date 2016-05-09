@@ -28,7 +28,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from . import instructions
-from .decoder import DECODER_TREE
+from .decoder import (DECODER_TREE, UndefinedInstructionError)
 
 decoder = DECODER_TREE
 decoder.build()
@@ -42,8 +42,19 @@ class Disassembler(object):
         endAddress = address + length
         offset = 0
         while address < endAddress:
-            i = decoder.decode(data[offset:], address)
+            # Decode the next instruction.
+            try:
+                i = decoder.decode(data[offset:], address)
+            except UndefinedInstructionError:
+                # Ignore the undefined error if it's the last few bytes.
+                if endAddress - address < 4:
+                    return
+                raise
+
+            # Return this instruction to the caller.
             yield i
+
+            # Update address based on instruction length.
             address += i.size
             offset += i.size
 
