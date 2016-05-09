@@ -98,12 +98,10 @@ class LabelOperand(Operand):
 
     def format(self, formatter):
         # Add a comment with the absolute address of the label.
-        # TODO use instr address instead of pc
-        # TODO handle pc + 4
-        comment = "0x%x" % (formatter.cpu.pc.unsigned + self._offset)
+        comment = "0x%x" % (formatter.instruction.address + 4 + self._offset)
         formatter.add_comment(comment)
 
-        return ".%+d" % self._offset
+        return ".%+d" % (self._offset + 4)
 
 class ShiftRotateOperand(Operand):
     OP_NAMES = ["None",
