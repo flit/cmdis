@@ -31,7 +31,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="cmdis",
-    versionn="0.1",
+    version="0.1",
     use_scm_version={
         'local_scheme': 'dirty-tag',
         'write_to': 'cmdis/_version.py'
