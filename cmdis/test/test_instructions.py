@@ -90,12 +90,12 @@ def format_bits(bits, **kwargs):
 
     return result
 
-def fmt_16bit(bits, **kwargs):
+def fmt16(bits, **kwargs):
     bits = format_bits(bits, **kwargs)
     hw1 = bitstring(bits)
     return hw1.bytes
 
-def fmt_32bit(bits, **kwargs):
+def fmt32(bits, **kwargs):
     bits = format_bits(bits, **kwargs)
     hw1, hw2 = bits.split(',')
     hw1 = bitstring(hw1)
@@ -178,7 +178,7 @@ class TestAdd:
     @pytest.mark.parametrize("Rdm", [2, 11])
     def test_add_sp_pl_reg_t1(self, cpu, fmt, Rdm):
         cpu.r[Rdm] = 200
-        i = decoder.decode(fmt_16bit("01000100 {DM} 1101 {Rdm:3}", DM=((Rdm >> 3) & 1), Rdm=Rdm))
+        i = decoder.decode(fmt16("01000100 {DM} 1101 {Rdm:3}", DM=((Rdm >> 3) & 1), Rdm=Rdm))
         assert i.m == Rdm
         assert i.n == 13
         assert i.d == Rdm
@@ -190,7 +190,7 @@ class TestAdd:
     @pytest.mark.parametrize("Rm", [2, 11])
     def test_add_sp_pl_reg_t2(self, cpu, fmt, Rm):
         cpu.r[Rm] = 200
-        i = decoder.decode(fmt_16bit("01000100 1 {Rm:4} 101", Rm=Rm))
+        i = decoder.decode(fmt16("01000100 1 {Rm:4} 101", Rm=Rm))
         assert i.m == Rm
         assert i.n == 13
         assert i.d == 13
@@ -333,7 +333,7 @@ class TestReverseSubtract:
         Rd = 1
         cpu.r[Rn] = bitstring(200)
         cpu.r[Rd] = bitstring(100)
-        i = decoder.decode(fmt_16bit("010000 1001 {Rn:3} {Rd:3}", Rn=Rn, Rd=Rd))
+        i = decoder.decode(fmt16("010000 1001 {Rn:3} {Rd:3}", Rn=Rn, Rd=Rd))
         assert i.n == Rn
         assert i.d == Rd
         print(fmt.format(i))
@@ -348,7 +348,7 @@ class TestReverseSubtract:
         cpu.r[Rn] = bitstring(200)
         cpu.r[Rd] = bitstring(100)
         im, imm3, imm8 = 0, 0, 212
-        i = decoder.decode(fmt_32bit("11110 {im} 0 1110 {S} {Rn:4}, 0 {imm3:3} {Rd:4} {imm8:8}", im=im, S=S, imm3=imm3, imm8=imm8, Rn=Rn, Rd=Rd))
+        i = decoder.decode(fmt32("11110 {im} 0 1110 {S} {Rn:4}, 0 {imm3:3} {Rd:4} {imm8:8}", im=im, S=S, imm3=imm3, imm8=imm8, Rn=Rn, Rd=Rd))
         assert i.n == Rn
         assert i.d == Rd
         print(fmt.format(i))
@@ -362,7 +362,7 @@ class TestMultiply:
         Rn = 2
         cpu.r[Rdm] = bitstring(0x0c1)
         cpu.r[Rn] = bitstring(0x180)
-        i = decoder.decode(fmt_16bit("010000 1101 {Rn:3} {Rdm:3}", Rn=Rn, Rdm=Rdm))
+        i = decoder.decode(fmt16("010000 1101 {Rn:3} {Rdm:3}", Rn=Rn, Rdm=Rdm))
         assert i.m == Rdm
         assert i.n == Rn
         assert i.d == Rdm
@@ -377,7 +377,7 @@ class TestMultiply:
         Rd = 1
         cpu.r[Rm] = bitstring(0x0c1)
         cpu.r[Rn] = bitstring(0x180)
-        i = decoder.decode(fmt_32bit("11111 0110 000 {Rn:4}, 1111 {Rd:4} 0000 {Rm:4}", Rn=Rn, Rd=Rd, Rm=Rm))
+        i = decoder.decode(fmt32("11111 0110 000 {Rn:4}, 1111 {Rd:4} 0000 {Rm:4}", Rn=Rn, Rd=Rd, Rm=Rm))
         assert i.m == Rm
         assert i.n == Rn
         assert i.d == Rd
@@ -526,7 +526,7 @@ class TestByteReverse:
         Rm = 2
         Rd = 1
         cpu.r[Rm] = bitstring(v)
-        i = decoder.decode(fmt_16bit('1011 1010 00 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
+        i = decoder.decode(fmt16('1011 1010 00 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
         assert i.m == Rm
         assert i.d == Rd
         print(fmt.format(i))
@@ -541,7 +541,7 @@ class TestByteReverse:
         Rm = 12
         Rd = 1
         cpu.r[Rm] = bitstring(v)
-        i = decoder.decode(fmt_32bit('11111 010 1 001 {Rm1:4}, 1111 {Rd:4} 1 000 {Rm2:4}', Rm1=Rm, Rm2=Rm, Rd=Rd))
+        i = decoder.decode(fmt32('11111 010 1 001 {Rm1:4}, 1111 {Rd:4} 1 000 {Rm2:4}', Rm1=Rm, Rm2=Rm, Rd=Rd))
         assert i.m == Rm
         assert i.d == Rd
         print(fmt.format(i))
@@ -556,7 +556,7 @@ class TestByteReverse:
         Rm = 2
         Rd = 1
         cpu.r[Rm] = bitstring(v)
-        i = decoder.decode(fmt_16bit('1011 1010 01 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
+        i = decoder.decode(fmt16('1011 1010 01 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
         assert i.m == Rm
         assert i.d == Rd
         print(fmt.format(i))
@@ -571,7 +571,7 @@ class TestByteReverse:
         Rm = 12
         Rd = 1
         cpu.r[Rm] = bitstring(v)
-        i = decoder.decode(fmt_32bit('11111 010 1 001 {Rm1:4}, 1111 {Rd:4} 1 001 {Rm2:4}', Rm1=Rm, Rm2=Rm, Rd=Rd))
+        i = decoder.decode(fmt32('11111 010 1 001 {Rm1:4}, 1111 {Rd:4} 1 001 {Rm2:4}', Rm1=Rm, Rm2=Rm, Rd=Rd))
         assert i.m == Rm
         assert i.d == Rd
         print(fmt.format(i))
@@ -587,7 +587,7 @@ class TestByteReverse:
         Rm = 2
         Rd = 1
         cpu.r[Rm] = bitstring(v)
-        i = decoder.decode(fmt_16bit('1011 1010 11 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
+        i = decoder.decode(fmt16('1011 1010 11 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
         assert i.m == Rm
         assert i.d == Rd
         print(fmt.format(i))
@@ -603,7 +603,7 @@ class TestByteReverse:
         Rm = 12
         Rd = 1
         cpu.r[Rm] = bitstring(v)
-        i = decoder.decode(fmt_32bit('11111 010 1 001 {Rm1:4}, 1111 {Rd:4} 1 011 {Rm2:4}', Rm1=Rm, Rm2=Rm, Rd=Rd))
+        i = decoder.decode(fmt32('11111 010 1 001 {Rm1:4}, 1111 {Rd:4} 1 011 {Rm2:4}', Rm1=Rm, Rm2=Rm, Rd=Rd))
         assert i.m == Rm
         assert i.d == Rd
         print(fmt.format(i))
@@ -615,7 +615,7 @@ class TestAdr:
     def test_adr_t1(self, cpu, fmt):
         Rd = 3
         imm = 28
-        i = decoder.decode(fmt_16bit('1010 0 {Rd:3} {imm:8}', Rd=Rd, imm=imm>>2))
+        i = decoder.decode(fmt16('1010 0 {Rd:3} {imm:8}', Rd=Rd, imm=imm>>2))
         assert i.d == Rd
         print(fmt.format(i))
         pc = cpu.pc.unsigned
@@ -629,7 +629,7 @@ class TestAdr:
         ])
     def test_adr_t2(self, cpu, fmt, Rd, imm):
         imm_bits = bitstring(imm)
-        i = decoder.decode(fmt_32bit('11110 {im} 10101 0 1111, 0 {imm3:3} {Rd:4} {imm8:8}',
+        i = decoder.decode(fmt32('11110 {im} 10101 0 1111, 0 {imm3:3} {Rd:4} {imm8:8}',
             Rd=Rd, im=imm_bits[11], imm3=imm_bits[8:11], imm8=imm_bits[0:8]))
         assert i.d == Rd
         print(fmt.format(i))
@@ -644,7 +644,7 @@ class TestAdr:
         ])
     def test_adr_t3(self, cpu, fmt, Rd, imm):
         imm_bits = bitstring(imm)
-        i = decoder.decode(fmt_32bit('11110 {im} 10000 0 1111, 0 {imm3:3} {Rd:4} {imm8:8}',
+        i = decoder.decode(fmt32('11110 {im} 10000 0 1111, 0 {imm3:3} {Rd:4} {imm8:8}',
             Rd=Rd, im=imm_bits[11], imm3=imm_bits[8:11], imm8=imm_bits[0:8]))
         assert i.d == Rd
         print(fmt.format(i))
@@ -806,7 +806,7 @@ class TestMove:
     @pytest.mark.parametrize("S", [0, 1])
     def test_mov_reg_t3_1(self, cpu, fmt, S):
         cpu.r[2] = bitstring(0x1234)
-        i = decoder.decode(fmt_32bit('11101010010{S}1111,0000110000000010', S=S))
+        i = decoder.decode(fmt32('11101010010{S}1111,0000110000000010', S=S))
         assert i.m == 2
         assert i.d == 12
         print(fmt.format(i))
@@ -822,7 +822,7 @@ class TestMove:
         Rd = 1
         Rm = 7
         cpu.r[Rm] = v
-        i = decoder.decode(fmt_16bit('010000 1111 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
+        i = decoder.decode(fmt16('010000 1111 {Rm:3} {Rd:3}', Rm=Rm, Rd=Rd))
         assert i.m == Rm
         assert i.d == Rd
         print(fmt.format(i))
@@ -854,7 +854,7 @@ class TestTest:
         Rn = 3
         cpu.r[Rn] = bitstring(nv)
         cpu.r[Rm] = bitstring(mv)
-        i = decoder.decode(fmt_16bit('010000 1000 {Rm:3} {Rn:3}', Rm=Rm, Rn=Rn))
+        i = decoder.decode(fmt16('010000 1000 {Rm:3} {Rn:3}', Rm=Rm, Rn=Rn))
         assert i.m == Rm
         assert i.n == Rn
         print(fmt.format(i))
@@ -878,7 +878,7 @@ class TestTest:
         imm3, imm2 = bitstring(shft)[2:5], bitstring(shft)[0:2]
         cpu.r[Rn] = bitstring(nv)
         cpu.r[Rm] = bitstring(mv)
-        i = decoder.decode(fmt_32bit('11101 01 0000 1 {Rn:4}, 0 {imm3:3} 1111 {imm2:2} {type:2} {Rm:4}', Rm=Rm, Rn=Rn, imm3=imm3, imm2=imm2, type=type))
+        i = decoder.decode(fmt32('11101 01 0000 1 {Rn:4}, 0 {imm3:3} 1111 {imm2:2} {type:2} {Rm:4}', Rm=Rm, Rn=Rn, imm3=imm3, imm2=imm2, type=type))
         assert i.m == Rm
         assert i.n == Rn
         print(fmt.format(i))
@@ -956,7 +956,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1000
         cpu.r[2] = 0x128
-        i = decoder.decode(fmt_16bit('0101 100 Rm=010 Rn=001 Rt=000'))
+        i = decoder.decode(fmt16('0101 100 Rm=010 Rn=001 Rt=000'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -970,7 +970,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1000
         cpu.r[2] = 0x128
-        i = decoder.decode(fmt_16bit('0101 101 Rm=010 Rn=001 Rt=000'))
+        i = decoder.decode(fmt16('0101 101 Rm=010 Rn=001 Rt=000'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -988,7 +988,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1000
         cpu.r[2] = 0x128
-        i = decoder.decode(fmt_16bit('0101 111 Rm=010 Rn=001 Rt=000'))
+        i = decoder.decode(fmt16('0101 111 Rm=010 Rn=001 Rt=000'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -1002,7 +1002,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1000
         cpu.r[2] = 0x129
-        i = decoder.decode(fmt_16bit('0101 110 Rm=010 Rn=001 Rt=000'))
+        i = decoder.decode(fmt16('0101 110 Rm=010 Rn=001 Rt=000'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -1020,7 +1020,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1000
         cpu.r[2] = 0x129
-        i = decoder.decode(fmt_16bit('0101 011 Rm=010 Rn=001 Rt=000'))
+        i = decoder.decode(fmt16('0101 011 Rm=010 Rn=001 Rt=000'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -1034,7 +1034,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1000
         cpu.r[2] = 4
-        i = decoder.decode(fmt_32bit('11111 00 0 0 10 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
+        i = decoder.decode(fmt32('11111 00 0 0 10 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -1048,7 +1048,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1002
         cpu.r[2] = 4
-        i = decoder.decode(fmt_32bit('11111 00 0 0 01 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
+        i = decoder.decode(fmt32('11111 00 0 0 01 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -1066,7 +1066,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1002
         cpu.r[2] = 4
-        i = decoder.decode(fmt_32bit('11111 00 1 0 01 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
+        i = decoder.decode(fmt32('11111 00 1 0 01 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -1080,7 +1080,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1001
         cpu.r[2] = 4
-        i = decoder.decode(fmt_32bit('11111 00 0 0 00 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
+        i = decoder.decode(fmt32('11111 00 0 0 00 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -1098,7 +1098,7 @@ class TestLoad:
         cpu.r[0] = 0xa5a5a5a5
         cpu.r[1] = 0x1001
         cpu.r[2] = 4
-        i = decoder.decode(fmt_32bit('11111 00 1 0 00 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
+        i = decoder.decode(fmt32('11111 00 1 0 00 1 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
         assert i.m == 2
         assert i.n == 1
         assert i.t == 0
@@ -1110,7 +1110,7 @@ class TestLoad:
     def test_ldr_literal(self, cpu, fmt):
         cpu.write32(0x800c, 0x12345678) # write literal to pc + offset
         cpu.r[3] = 0xa5a5a5a5
-        i = decoder.decode(fmt_16bit('01001 Rt=011 imm8=00000010'))
+        i = decoder.decode(fmt16('01001 Rt=011 imm8=00000010'))
         assert i.t == 3
         print(fmt.format(i))
         i.execute(cpu)
@@ -1124,7 +1124,7 @@ class TestLoad:
     def test_ldr_literal_w(self, cpu, fmt, U, imm12, addr, reg4bit_nopc):
         cpu.write32(addr, 0x12345678) # write literal to pc + offset
         cpu.r[reg4bit_nopc] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 0 {U} 10 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        i = decoder.decode(fmt32('11111 00 0 {U} 10 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
         assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
@@ -1138,7 +1138,7 @@ class TestLoad:
     def test_ldrh_literal_w(self, cpu, fmt, U, imm12, addr, reg4bit_nopc):
         cpu.write32(addr, 0x12345678) # write literal to pc + offset
         cpu.r[reg4bit_nopc] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 0 {U} 01 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        i = decoder.decode(fmt32('11111 00 0 {U} 01 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
         assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
@@ -1152,7 +1152,7 @@ class TestLoad:
     def test_ldrb_literal_w(self, cpu, fmt, U, imm12, addr, reg4bit_nopc):
         cpu.write32(addr, 0x12345678) # write literal to pc + offset
         cpu.r[reg4bit_nopc] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 0 {U} 00 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        i = decoder.decode(fmt32('11111 00 0 {U} 00 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
         assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
@@ -1168,7 +1168,7 @@ class TestLoad:
     def test_ldrsh_literal_w(self, cpu, fmt, U, imm12, addr, v, e, reg4bit_nopc):
         cpu.write16(addr, v) # write literal to pc + offset
         cpu.r[reg4bit_nopc] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 1 {U} 01 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        i = decoder.decode(fmt32('11111 00 1 {U} 01 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
         assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
@@ -1184,7 +1184,7 @@ class TestLoad:
     def test_ldrsb_literal_w(self, cpu, fmt, U, imm12, addr, v, e, reg4bit_nopc):
         cpu.write8(addr, v) # write literal to pc + offset
         cpu.r[reg4bit_nopc] = 0xa5a5a5a5
-        i = decoder.decode(fmt_32bit('11111 00 1 {U} 00 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
+        i = decoder.decode(fmt32('11111 00 1 {U} 00 1 1111, {Rt:4} {imm12:12}', U=U, Rt=reg4bit_nopc, imm12=imm12))
         assert i.t == reg4bit_nopc
         print(fmt.format(i))
         i.execute(cpu)
@@ -1202,7 +1202,7 @@ class TestLoad:
         cpu.write32(addr + imm, 0x12345678)
         cpu.r[Rt] = 0xa5a5a5a5
         cpu.r[Rn] = addr
-        i = decoder.decode(fmt_16bit('011 0 1 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>2, Rn=Rn, Rt=Rt))
+        i = decoder.decode(fmt16('011 0 1 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>2, Rn=Rn, Rt=Rt))
         assert i.n == Rn
         assert i.t == Rt
         print(fmt.format(i))
@@ -1220,7 +1220,7 @@ class TestLoad:
         cpu.write32(addr + imm, 0x12345678)
         cpu.r[13] = addr
         cpu.r[Rt] = 0xa5a5a5a5
-        i = decoder.decode(fmt_16bit('1001 1 {Rt:3} {imm8:8}', imm8=imm>>2, Rt=Rt))
+        i = decoder.decode(fmt16('1001 1 {Rt:3} {imm8:8}', imm8=imm>>2, Rt=Rt))
         assert i.t == Rt
         print(fmt.format(i))
         i.execute(cpu)
@@ -1239,7 +1239,7 @@ class TestLoad:
         cpu.write16(addr + imm, 0x5678)
         cpu.r[Rt] = 0xa5a5a5a5
         cpu.r[Rn] = addr
-        i = decoder.decode(fmt_16bit('100 0 1 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>1, Rn=Rn, Rt=Rt))
+        i = decoder.decode(fmt16('100 0 1 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>1, Rn=Rn, Rt=Rt))
         assert i.n == Rn
         assert i.t == Rt
         print(fmt.format(i))
@@ -1259,7 +1259,7 @@ class TestLoad:
         cpu.write8(addr + imm, 0x78)
         cpu.r[Rt] = 0xa5a5a5a5
         cpu.r[Rn] = addr
-        i = decoder.decode(fmt_16bit('011 1 1 {imm5:5} {Rn:3} {Rt:3}', imm5=imm, Rn=Rn, Rt=Rt))
+        i = decoder.decode(fmt16('011 1 1 {imm5:5} {Rn:3} {Rt:3}', imm5=imm, Rn=Rn, Rt=Rt))
         assert i.n == Rn
         assert i.t == Rt
         print(fmt.format(i))
@@ -1273,7 +1273,7 @@ class TestStore:
         cpu.r[0] = 0x12341234
         cpu.r[1] = 0x1000
         cpu.r[2] = 0x44
-        i = decoder.decode(fmt_16bit('0101 000 Rm=010 Rn=001 Rt=000'))
+        i = decoder.decode(fmt16('0101 000 Rm=010 Rn=001 Rt=000'))
         print(fmt.format(i))
         i.execute(cpu)
         assert cpu.read32(0x1044) == 0x12341234
@@ -1283,7 +1283,7 @@ class TestStore:
         cpu.r[0] = 0x12345678
         cpu.r[1] = 0x1000
         cpu.r[2] = 0x44
-        i = decoder.decode(fmt_16bit('0101 001 Rm=010 Rn=001 Rt=000'))
+        i = decoder.decode(fmt16('0101 001 Rm=010 Rn=001 Rt=000'))
         print(fmt.format(i))
         i.execute(cpu)
         assert cpu.read16(0x1042) == 0
@@ -1295,7 +1295,7 @@ class TestStore:
         cpu.r[0] = 0xaa55
         cpu.r[1] = 0x1000
         cpu.r[2] = 0x45
-        i = decoder.decode(fmt_16bit('0101 010 Rm=010 Rn=001 Rt=000'))
+        i = decoder.decode(fmt16('0101 010 Rm=010 Rn=001 Rt=000'))
         print(fmt.format(i))
         i.execute(cpu)
         assert cpu.read8(0x1044) == 0
@@ -1307,7 +1307,7 @@ class TestStore:
         cpu.r[0] = 0x7788aa55
         cpu.r[1] = 0x1000
         cpu.r[2] = 0x4
-        i = decoder.decode(fmt_32bit('11111 00 0 0 10 0 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
+        i = decoder.decode(fmt32('11111 00 0 0 10 0 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
         print(fmt.format(i))
         i.execute(cpu)
         assert cpu.read32(0x1008) == 0x7788aa55
@@ -1317,7 +1317,7 @@ class TestStore:
         cpu.r[0] = 0x12345678
         cpu.r[1] = 0x1002
         cpu.r[2] = 0x4
-        i = decoder.decode(fmt_32bit('11111 00 0 0 01 0 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
+        i = decoder.decode(fmt32('11111 00 0 0 01 0 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
         print(fmt.format(i))
         i.execute(cpu)
         assert cpu.read16(0x1008) == 0
@@ -1329,7 +1329,7 @@ class TestStore:
         cpu.r[0] = 0xaa55
         cpu.r[1] = 0x1001
         cpu.r[2] = 0x4
-        i = decoder.decode(fmt_32bit('11111 00 0 0 00 0 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
+        i = decoder.decode(fmt32('11111 00 0 0 00 0 Rn=0001, Rt=0000 0 00000 imm2=01 Rm=0010'))
         print(fmt.format(i))
         i.execute(cpu)
         assert cpu.read8(0x1008) == 0
@@ -1347,7 +1347,7 @@ class TestStore:
         Rt = 0
         cpu.r[Rt] = 0x12341234
         cpu.r[Rn] = addr
-        i = decoder.decode(fmt_16bit('011 0 0 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>2, Rn=Rn, Rt=Rt))
+        i = decoder.decode(fmt16('011 0 0 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>2, Rn=Rn, Rt=Rt))
         assert i.t == Rt
         assert i.n == Rn
         print(fmt.format(i))
@@ -1364,7 +1364,7 @@ class TestStore:
         Rt = 0
         cpu.r[13] = addr
         cpu.r[Rt] = 0x12341234
-        i = decoder.decode(fmt_16bit('1001 0 {Rt:3} {imm8:8}', imm8=imm>>2, Rt=Rt))
+        i = decoder.decode(fmt16('1001 0 {Rt:3} {imm8:8}', imm8=imm>>2, Rt=Rt))
         assert i.t == Rt
         print(fmt.format(i))
         i.execute(cpu)
@@ -1382,7 +1382,7 @@ class TestStore:
         Rt = 0
         cpu.r[Rt] = 0x12345678
         cpu.r[Rn] = addr
-        i = decoder.decode(fmt_16bit('100 0 0 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>1, Rn=Rn, Rt=Rt))
+        i = decoder.decode(fmt16('100 0 0 {imm5:5} {Rn:3} {Rt:3}', imm5=imm>>1, Rn=Rn, Rt=Rt))
         assert i.t == Rt
         assert i.n == Rn
         print(fmt.format(i))
@@ -1401,7 +1401,7 @@ class TestStore:
         Rt = 0
         cpu.r[Rt] = 0x12345678
         cpu.r[Rn] = addr
-        i = decoder.decode(fmt_16bit('011 1 0 {imm5:5} {Rn:3} {Rt:3}', imm5=imm, Rn=Rn, Rt=Rt))
+        i = decoder.decode(fmt16('011 1 0 {imm5:5} {Rn:3} {Rt:3}', imm5=imm, Rn=Rn, Rt=Rt))
         assert i.t == Rt
         assert i.n == Rn
         print(fmt.format(i))
@@ -1425,7 +1425,7 @@ class TestPush:
         cpu.lr = 14
         reglist = bitstring('0000000011111001')
         reglist[14] = m
-        i = decoder.decode(fmt_16bit('1011 0 10 {M} {reglist:8}', M=reglist[14], reglist=reglist[0:8]))
+        i = decoder.decode(fmt16('1011 0 10 {M} {reglist:8}', M=reglist[14], reglist=reglist[0:8]))
         print(fmt.format(i))
         sp = cpu.sp
         i.execute(cpu)
@@ -1439,7 +1439,7 @@ class TestPush:
         cpu.sp = 0x20004000
         reglist = bitstring('0000001111101011')
         reglist[14] = m
-        i = decoder.decode(fmt_32bit('11101 00 100 1 0 1101, 0 {M} 0 {reglist:13}', M=reglist[14], reglist=reglist[0:13]))
+        i = decoder.decode(fmt32('11101 00 100 1 0 1101, 0 {M} 0 {reglist:13}', M=reglist[14], reglist=reglist[0:13]))
         print(fmt.format(i))
         sp = cpu.sp
         i.execute(cpu)
@@ -1452,7 +1452,7 @@ class TestPush:
         cpu.sp = 0x20004000
         reglist = zeros(16)
         reglist[reg4bit_nopc_nosp] = 1
-        i = decoder.decode(fmt_32bit('11111 00 0 0 10 0 1101, {Rt:4} 1 101 00000100', Rt=reglist.lowest_set_bit()))
+        i = decoder.decode(fmt32('11111 00 0 0 10 0 1101, {Rt:4} 1 101 00000100', Rt=reglist.lowest_set_bit()))
         print(fmt.format(i))
         sp = cpu.sp
         i.execute(cpu)
@@ -1480,7 +1480,7 @@ class TestPop:
         reglist = bitstring('0000000011111001')
         reglist[15] = p
         self.setup_stack(cpu, reglist)
-        i = decoder.decode(fmt_16bit('1011 1 10 {P} {reglist:8}', P=reglist[15], reglist=reglist[0:8]))
+        i = decoder.decode(fmt16('1011 1 10 {P} {reglist:8}', P=reglist[15], reglist=reglist[0:8]))
         print(fmt.format(i))
         sp = cpu.sp
         i.execute(cpu)
@@ -1497,7 +1497,7 @@ class TestPop:
         reglist[14] = m
         reglist[15] = p
         self.setup_stack(cpu, reglist)
-        i = decoder.decode(fmt_32bit('11101 00 010 1 1 1101, {P} {M} 0 {reglist:13}', P=reglist[15], M=reglist[14], reglist=reglist[0:13]))
+        i = decoder.decode(fmt32('11101 00 010 1 1 1101, {P} {M} 0 {reglist:13}', P=reglist[15], M=reglist[14], reglist=reglist[0:13]))
         print(fmt.format(i))
         sp = cpu.sp
         i.execute(cpu)
@@ -1508,7 +1508,7 @@ class TestPop:
         reglist = zeros(16)
         reglist[reg4bit_nosp] = 1
         self.setup_stack(cpu, reglist)
-        i = decoder.decode(fmt_32bit('11111 00 0 0 10 1 1101, {Rt:4} 1 011 00000100', Rt=reglist.lowest_set_bit()))
+        i = decoder.decode(fmt32('11111 00 0 0 10 1 1101, {Rt:4} 1 011 00000100', Rt=reglist.lowest_set_bit()))
         print(fmt.format(i))
         sp = cpu.sp
         i.execute(cpu)
@@ -1534,7 +1534,7 @@ class TestStoreMultiple:
         Rn = 2
         reglist = bitstring('0000000011111001')
         cpu.r[Rn] = 0x20001000
-        i = decoder.decode(fmt_16bit('1100 0 {Rn:3} {reglist:8}', Rn=Rn, reglist=reglist[0:8]))
+        i = decoder.decode(fmt16('1100 0 {Rn:3} {reglist:8}', Rn=Rn, reglist=reglist[0:8]))
         print(fmt.format(i))
         origAddr = cpu.r[Rn]
         i.execute(cpu)
@@ -1553,7 +1553,7 @@ class TestStoreMultiple:
         reglist = bitstring('0000001111101011')
         reglist[14] = M
         cpu.r[Rn] = 0x20001000
-        i = decoder.decode(fmt_32bit('11101 00 010 {W} 0 {Rn:4}, 0 {M} 0 {reglist:13}', Rn=Rn, W=W, M=reglist[14], reglist=reglist[0:13]))
+        i = decoder.decode(fmt32('11101 00 010 {W} 0 {Rn:4}, 0 {M} 0 {reglist:13}', Rn=Rn, W=W, M=reglist[14], reglist=reglist[0:13]))
         print(fmt.format(i))
         origAddr = cpu.r[Rn]
         i.execute(cpu)
@@ -1586,7 +1586,7 @@ class TestLoadMultiple:
         reglist[Rn] = 0 if W else 1
         cpu.r[Rn] = 0x20001000
         self.setup_stack(cpu, Rn, reglist)
-        i = decoder.decode(fmt_16bit('1100 1 {Rn:3} {reglist:8}', Rn=Rn, reglist=reglist[0:8]))
+        i = decoder.decode(fmt16('1100 1 {Rn:3} {reglist:8}', Rn=Rn, reglist=reglist[0:8]))
         print(fmt.format(i))
         origAddr = cpu.r[Rn]
         i.execute(cpu)
@@ -1608,7 +1608,7 @@ class TestLoadMultiple:
         reglist[14] = M
         cpu.r[Rn] = 0x20001000
         self.setup_stack(cpu, Rn, reglist)
-        i = decoder.decode(fmt_32bit('11101 00 010 {W} 1 {Rn:4}, {P} {M} 0 {reglist:13}', Rn=Rn, W=W, P=reglist[15], M=reglist[14], reglist=reglist[0:13]))
+        i = decoder.decode(fmt32('11101 00 010 {W} 1 {Rn:4}, {P} {M} 0 {reglist:13}', Rn=Rn, W=W, P=reglist[15], M=reglist[14], reglist=reglist[0:13]))
         print(fmt.format(i))
         origAddr = cpu.r[Rn]
         i.execute(cpu)
@@ -1628,7 +1628,7 @@ class TestCps:
         inv_im = 0 if im else 1
         cpu.write_register(CORE_REGISTER['primask'], inv_im)
         cpu.write_register(CORE_REGISTER['faultmask'], inv_im)
-        i = decoder.decode(fmt_16bit('1011 0110 011 {im} 0 0 {I} {F}', im=im, I=I, F=F))
+        i = decoder.decode(fmt16('1011 0110 011 {im} 0 0 {I} {F}', im=im, I=I, F=F))
         print(fmt.format(i))
         i.execute(cpu)
         if I:
@@ -1643,7 +1643,7 @@ class TestCps:
 class TestBkpt:
     @pytest.mark.parametrize("imm", [0, 0xab])
     def test_bkpt(self, cpu, fmt, imm):
-        i = decoder.decode(fmt_16bit('1011 1110 {imm8:8}', imm8=imm))
+        i = decoder.decode(fmt16('1011 1110 {imm8:8}', imm8=imm))
         assert i.imm32 == imm
         print(fmt.format(i))
         i.execute(cpu)
@@ -1651,7 +1651,7 @@ class TestBkpt:
 class TestNopHints:
     @pytest.mark.parametrize("x", [0, 1, 2, 3, 4])
     def test_mov_reg_t3_1(self, cpu, fmt, x):
-        i = decoder.decode(fmt_16bit('1011 1111 {x:4} 0000', x=x))
+        i = decoder.decode(fmt16('1011 1111 {x:4} 0000', x=x))
         print(fmt.format(i))
         i.execute(cpu)
 
@@ -1665,7 +1665,7 @@ class TestBarriers:
             (2, 10), # isb #10
         ])
     def test_mov_reg_t3_1(self, cpu, fmt, x, option):
-        i = decoder.decode(fmt_32bit('11110 0 111 01 1 1111, 10 0 0 1111 01{x:2} {option:4}', x=x, option=option))
+        i = decoder.decode(fmt32('11110 0 111 01 1 1111, 10 0 0 1111 01{x:2} {option:4}', x=x, option=option))
         print(fmt.format(i))
         i.execute(cpu)
 
@@ -1692,7 +1692,7 @@ class TestSpecialRegister:
     # mrs r3, <spec>
     def test_mrs(self, cpu, fmt, SYSm):
         Rd = 3
-        i = decoder.decode(fmt_32bit('11110 0 1111 1 0 1111, 10 0 0 {Rd:4} {SYSm:8}', Rd=Rd, SYSm=SYSm))
+        i = decoder.decode(fmt32('11110 0 1111 1 0 1111, 10 0 0 {Rd:4} {SYSm:8}', Rd=Rd, SYSm=SYSm))
         print(fmt.format(i))
 #         i.execute(cpu)
 
@@ -1700,26 +1700,26 @@ class TestSpecialRegister:
     def test_msr(self, cpu, fmt, SYSm):
         Rn = 3
         mask = 2 # _nzcvq
-        i = decoder.decode(fmt_32bit('11110 0 1110 0 0 {Rn:4}, 10 0 0 {mask:2} 0 0 {SYSm:8}', Rn=Rn, mask=mask, SYSm=SYSm))
+        i = decoder.decode(fmt32('11110 0 1110 0 0 {Rn:4}, 10 0 0 {mask:2} 0 0 {SYSm:8}', Rn=Rn, mask=mask, SYSm=SYSm))
         print(fmt.format(i))
 #         i.execute(cpu)
 
 class TestMisc:
     def test_svc_t1(self, cpu, fmt):
         imm8 = 72
-        i = decoder.decode(fmt_16bit('1101 1111 {imm8:8}', imm8=imm8))
+        i = decoder.decode(fmt16('1101 1111 {imm8:8}', imm8=imm8))
         print(fmt.format(i))
 #         i.execute(cpu)
 
     def test_udf_t1(self, cpu, fmt):
         imm8 = 60
-        i = decoder.decode(fmt_16bit('1101 1110 {imm8:8}', imm8=imm8))
+        i = decoder.decode(fmt16('1101 1110 {imm8:8}', imm8=imm8))
         print(fmt.format(i))
 #         i.execute(cpu)
 
     def test_udf_t2(self, cpu, fmt):
         imm = bitstring(1234)
-        i = decoder.decode(fmt_32bit('111 10 1111111 {imm4:4}, 1 010 {imm12:12}', imm4=imm[12:16], imm12=imm[0:12]))
+        i = decoder.decode(fmt32('111 10 1111111 {imm4:4}, 1 010 {imm12:12}', imm4=imm[12:16], imm12=imm[0:12]))
         print(fmt.format(i))
 #         i.execute(cpu)
 
