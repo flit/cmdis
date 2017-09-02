@@ -34,6 +34,10 @@ import sys
 import optparse
 from optparse import make_option
 import traceback
+try:
+    import gnureadline
+except ImportError:
+    pass
 
 import cmdis
 from cmdis import __version__
