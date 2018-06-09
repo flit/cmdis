@@ -1,6 +1,4 @@
 --editable .
 
 pytest
-pytest-catchlog
-pytest-logging
 coverage
