@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2016 Chris Reed
+# Copyright (c) 2016-2018 Chris Reed
 #
 # Redistribution and use in source and binary forms, with or without modification,
 # are permitted provided that the following conditions are met:
@@ -99,6 +99,16 @@ class bitstring(object):
         return self._value
 
     @property
+    def inverted(self):
+        return bitstring(self._mask & ~self._value, self._width)
+
+    @property
+    def reversed(self):
+        bits = self.binary_string
+        bits = ''.join(x for x in reversed(bits))
+        return bitstring(bits, self._width)
+
+    @property
     def width(self):
         return self._width
 
@@ -125,6 +135,18 @@ class bitstring(object):
         for i in range((self._width + 7) / 8):
             result.append((self._value >> (i * 8)) & 0xff)
         return bytearray(result)
+
+    def base_string(self, base=16):
+        if base == 2:
+            return "%d'b%s" % (self._width, self.binary_string)
+        elif base == 8:
+            return "%d'o%s" % (self._width, oct(self._value)[1:].rstrip('L'))
+        elif base == 10:
+            return "%d'd%s" % (self._width, str(self._value).rstrip('L'))
+        elif base == 16:
+            return "%d'h%s" % (self._width, hex(self._value)[2:].rstrip('L'))
+        else:
+            raise ValueError('unsupported base')
 
     def __repr__(self):
         return "%d'b%s" % (self._width, self.binary_string)
@@ -277,9 +299,6 @@ class bitstring(object):
         for i in range(self._width):
             yield (self._value >> i) & 1
 
-    def __reversed__(self):
-        return NotImplemented
-
     def set(self, other):
         if not isinstance(other, bitstring):
             raise TypeError("argument is not a bitstring")
@@ -288,7 +307,8 @@ class bitstring(object):
         self._value = other._value
 
     def reverse(self):
-        self.set(reversed(self))
+        self.set(self.reversed)
+        return self
 
     def sign_extend(self, width):
         if width < self._width:
@@ -309,7 +329,8 @@ class bitstring(object):
         return bitstring(self, width)
 
     def invert(self):
-        return bitstring(self._mask & ~self._value, self._width)
+        self.set(bitstring(self._mask & ~self._value, self._width))
+        return self
 
     def __add__(self, other):
         b = bitstring(self)

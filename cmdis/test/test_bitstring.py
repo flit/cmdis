@@ -28,6 +28,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from ..bitstring import *
+import pytest
 
 class TestBitstring:
     def test_init_empty(self):
@@ -192,9 +193,28 @@ class TestBitstring:
         assert bitstring('1000').zero_extend(8) == bitstring('00001000')
 
     def test_invert(self):
-        assert bitstring('1').invert() == bitstring('0')
-        assert bitstring('0').invert() == bitstring('1')
+        o = bitstring('1')
+        z = bitstring('0')
+        assert o.invert() == bitstring('0') and o == bitstring('0')
+        assert z.invert() == bitstring('1') and z == bitstring('1')
         assert bitstring('0010010').invert() == bitstring('1101101')
+
+    def test_inverted(self):
+        o = bitstring('1')
+        z = bitstring('0')
+        assert o.inverted == bitstring('0') and o == bitstring('1')
+        assert z.inverted == bitstring('1') and z == bitstring('0')
+        assert bitstring('0010010').inverted == bitstring('1101101')
+
+    def test_reverse(self):
+        x = bitstring('100101')
+        assert x.reverse() == bitstring('101001')
+        assert x == bitstring('101001')
+
+    def test_reversed(self):
+        x = bitstring('100101')
+        assert x.reversed == bitstring('101001')
+        assert x == bitstring('100101')
 
     def test_append(self):
         assert bitstring() + bitstring('0') == bitstring('0')
@@ -366,4 +386,16 @@ class TestBitstring:
         x.width = 5
         assert x.bytes == bytearray([0x04])
 
+    def test_binary_string(self):
+        x = bitstring('100101001')
+        assert x.binary_string == '100101001'
+
+    def test_base_string(self):
+        x = bitstring('100101001')
+        assert x.base_string(base=2) == "9'b100101001"
+        assert x.base_string(base=8) == "9'o451"
+        assert x.base_string(base=10) == "9'd297"
+        assert x.base_string(base=16) == "9'h129"
+        with pytest.raises(ValueError):
+            x.base_string(base=3)
 
