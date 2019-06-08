@@ -1,31 +1,18 @@
-#!/usr/bin/env python
-
-# Copyright (c) 2016 Chris Reed
+# Copyright (c) 2016-2019 Chris Reed
 #
-# Redistribution and use in source and binary forms, with or without modification,
-# are permitted provided that the following conditions are met:
+# SPDX-License-Identifier: Apache-2.0
 #
-# o Redistributions of source code must retain the above copyright notice, this list
-#   of conditions and the following disclaimer.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# o Redistributions in binary form must reproduce the above copyright notice, this
-#   list of conditions and the following disclaimer in the documentation and/or
-#   other materials provided with the distribution.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# o Neither the names of the copyright holders nor the names of the
-#   contributors may be used to endorse or promote products derived from this
-#   software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-# ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-# ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from .decoder import (Instruction, instr, DecodeError, UnpredictableError)
 from .bitstring import (bitstring, bit0, bit1)
@@ -592,9 +579,10 @@ def b_t1(i, cond, imm8):
     i.imm32 = (imm8 % '0').sign_extend(32)
     i.operands = [LabelOperand(i.imm32.signed)]
 
+# TODO test me
 @instr("b", Branch, "11100 imm11(11)")
 def b_t2(i, imm11):
-    i.cond = bitstring('1111')
+#     i.cond = bitstring('1111')
     i.imm32 = (imm11 % '0').sign_extend(32)
     i.operands = [LabelOperand(i.imm32.signed)]
 
@@ -941,6 +929,36 @@ def bkpt(i, imm8):
 
 class MoveFromSpecial(Instruction):
     def _eval(self, cpu):
+        r = zeros(32)
+        if self.SYSm[3:8] == '00000': # xPSR access
+            if self.SYSm[0] == '1':
+                r[0:9] = cpu.ipsr[0:9]
+            if self.SYSm[1] == '1':
+                r[24:27] = '000' # EPSR reads as zero
+                r[10:16] = '000000'
+            if self.SYSm[2] == '0':
+                r[27:32] = cpu.apsr[27:32]
+                if cpu.has_dsp_ext:
+                    r[16:20] = cpu.apsr[16:20]
+        elif self.SYSm[3:8] == '00001': # SP access
+            if cpu.is_privileged:
+                if self.SYSm[0:3] == '000':
+                    r = cpu.msp
+                elif self.SYSm[0:3] == '001':
+                    r = cpu.psp
+        elif self.SYSm[3:8] == '00010': # Priority mask or CONTROL access
+            if self.SYSm[0:3] == '000':
+                r[0] = cpu.read_register(CORE_REGISTER['primask'])[0] if cpu.is_privileged else 0
+            elif self.SYSm[0:3] in ('001', '010'):
+                r[0:8] = cpu.read_register(CORE_REGISTER['basepri'])[0:8] if cpu.is_privileged else 0
+            elif self.SYSm[0:3] == '011':
+                r[0] = cpu.read_register(CORE_REGISTER['faultmask'])[0] if cpu.is_privileged else 0
+            elif self.SYSm[0:3] == '100':
+                if cpu.has_fp_ext:
+                    r[0:3] = cpu.control[0:3]
+                else:
+                    r[0:2] = cpu.control[0:2]
+        cpu.r[self.d] = r
         cpu.pc += self.size
 
 class MoveToSpecial(Instruction):

@@ -1,36 +1,24 @@
-#!/usr/bin/env python
-
-# Copyright (c) 2016 Chris Reed
+# Copyright (c) 2016-2019 Chris Reed
 #
-# Redistribution and use in source and binary forms, with or without modification,
-# are permitted provided that the following conditions are met:
+# SPDX-License-Identifier: Apache-2.0
 #
-# o Redistributions of source code must retain the above copyright notice, this list
-#   of conditions and the following disclaimer.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# o Redistributions in binary form must reproduce the above copyright notice, this
-#   list of conditions and the following disclaimer in the documentation and/or
-#   other materials provided with the distribution.
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# o Neither the names of the copyright holders nor the names of the
-#   contributors may be used to endorse or promote products derived from this
-#   software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-# ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-# ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from __future__ import print_function
 from .registers import register_name_to_index
 from .utilities import (bfi, bfx)
 from .bitstring import bitstring
+from enum import Enum
 import six
 import logging
 
@@ -101,16 +89,35 @@ class ApsrAlias(object):
         v[self.V_BIT] = bitstring(value, 1)
         self._cpu.xpsr = v
 
+class CpuMode(Enum):
+    Thread = 0
+    Handler = 1
+
 ##
 # @brief
 #
 # All register and integer values are passed as bitstrings.
+#
+# TODO handle CPU features better
 class CpuModel(object):
+    nPRIV = 0
+    SPSEL = 1
+    FPCA = 2
+
     def __init__(self):
         self._delegate = None
         self._registers_interface = RegistersInterface(self, 0, 15)
         self._float_registers_interface = RegistersInterface(self, 0x40, 0x5f)
         self._apsr = ApsrAlias(self)
+        self._mode = CpuMode.Thread
+
+    @property
+    def has_dsp_ext(self):
+        return False
+
+    @property
+    def has_fp_ext(self):
+        return False
 
     @property
     def delegate(self):
@@ -127,6 +134,15 @@ class CpuModel(object):
     @property
     def in_it_block(self):
         return False
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, newMode):
+        # TODO handle mode transitions correctly
+        self._mode = newMode
 
     @property
     def pc(self):
@@ -176,6 +192,10 @@ class CpuModel(object):
     @property
     def control(self):
         return self.read_register('control')
+
+    @property
+    def is_privileged(self):
+        return self.control[self.nPRIV] == '0'
 
     @property
     def xpsr(self):
