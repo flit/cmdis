@@ -40,7 +40,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'cmdis-sim = cmdis.simtool:main',
+            'cmdis = cmdis.__main__:main',
         ],
     },
     use_2to3=True,
