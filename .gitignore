@@ -66,7 +66,12 @@ htmlcov
 /dev
 /windev
 
+/var
+
 .pytest_cache
 .coveragerc
 .eggs/
 cmdis/_version.py
+
+~$*
+
