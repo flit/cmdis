@@ -16,6 +16,7 @@
 
 import six
 import collections
+import functools
 
 ##
 # @brief Variable length bit string.
@@ -42,7 +43,7 @@ class bitstring(object):
             # Iterable.
             # TODO support iterables of '0','1' as well as ints
             self._width = len(val)
-            self._value = reduce(lambda x,y:(x << 1) | y, val)
+            self._value = functools.reduce(lambda x,y:(x << 1) | y, val)
         elif isinstance(val, bytearray):
             # Little endian byte array.
             self._width = len(val) * 8
@@ -119,7 +120,7 @@ class bitstring(object):
     @property
     def bytes(self):
         result = []
-        for i in range((self._width + 7) / 8):
+        for i in range((self._width + 7) // 8):
             result.append((self._value >> (i * 8)) & 0xff)
         return bytearray(result)
 
@@ -127,7 +128,11 @@ class bitstring(object):
         if base == 2:
             return "%d'b%s" % (self._width, self.binary_string)
         elif base == 8:
-            return "%d'o%s" % (self._width, oct(self._value)[1:].rstrip('L'))
+            # Python 2 oct(123) returns '0172', where Python 3 oct(123) return '0o173'.
+            if six.PY2:
+                return "%d'o%s" % (self._width, oct(self._value)[1:].rstrip('L'))
+            else:
+                return "%d'%s" % (self._width, oct(self._value)[1:].rstrip('L'))
         elif base == 10:
             return "%d'd%s" % (self._width, str(self._value).rstrip('L'))
         elif base == 16:
@@ -404,7 +409,6 @@ class bitstring(object):
         return bitstring(other).__floordiv__(self)
 
     def __rmod__(self, other):
-        print "rmod called"
         return bitstring(other).__mod__(self)
 
     def __rand__(self, other):

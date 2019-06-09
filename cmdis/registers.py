@@ -81,7 +81,7 @@ CORE_REGISTER = {
                  }
 
 # Build a reverse register dictionary.
-CORE_REGISTER_NAMES = {v: k for k, v in CORE_REGISTER.iteritems()}
+CORE_REGISTER_NAMES = {v: k for k, v in CORE_REGISTER.items()}
 
 # Fix up a few registers that have multiple names in CORE_REGISTER to make
 # sure we get the special names.

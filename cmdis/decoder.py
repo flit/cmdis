@@ -16,6 +16,7 @@
 
 from __future__ import print_function
 import string
+import functools
 from collections import (defaultdict, namedtuple)
 
 from .bitstring import bitstring
@@ -152,7 +153,7 @@ class DecoderTree(object):
             return DecoderTreeNode(mask=0, children=decoders)
 
         # Compute the mask of common bits that all decoders at this level have set.
-        commonMask = reduce(lambda a, b: a & b, [d._mask for d in decoders])
+        commonMask = functools.reduce(lambda a, b: a & b, [d._mask for d in decoders])
         if commonMask == 0:
             return DecoderTreeNode(mask=commonMask, children=decoders)
 
@@ -164,10 +165,10 @@ class DecoderTree(object):
         # If there is only one element in the children dict, then all decoders at this
         # level have the same value under the common mask.
         if len(children) == 1:
-            return DecoderTreeNode(mask=0, children=children.values()[0])
+            return DecoderTreeNode(mask=0, children=list(children.values())[0])
 
         # Recursively process each group of children with the same match value at this level.
-        for k, subdecoders in children.iteritems():
+        for k, subdecoders in children.items():
             children[k] = self._build_tree(subdecoders)
 
         return DecoderTreeNode(mask=commonMask, children=children)
@@ -222,13 +223,13 @@ class Decoder(object):
     def decode(self, word, address=0):
         # Read bitfields from the instruction.
         attrs = {}
-        for n,f in self._attrs.iteritems():
+        for n,f in self._attrs.items():
             attrs[n] = f(word)
 
         # Create instruction object.
         i = self._klass(self._mnemonic, word, self.is32bit)
         i.address = address
-        for k, v in self.args.iteritems():
+        for k, v in self.args.items():
             setattr(i, k, v)
 
         # Call handler to further decode instruction.

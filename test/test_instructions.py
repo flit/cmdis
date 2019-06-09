@@ -123,11 +123,11 @@ def reg4bit(request):
 def reg4bit_nopc(request):
     return request.param
 
-@pytest.fixture(params=(range(13)+[14,15]))
+@pytest.fixture(params=(list(range(13))+[14,15]))
 def reg4bit_nosp(request):
     return request.param
 
-@pytest.fixture(params=(range(13)+[14]))
+@pytest.fixture(params=(list(range(13))+[14]))
 def reg4bit_nopc_nosp(request):
     return request.param
 

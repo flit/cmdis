@@ -16,6 +16,9 @@
 
 from cmdis.bitstring import *
 import pytest
+import sys
+
+PY2 = sys.version_info[0] == 2
 
 class TestBitstring:
     def test_init_empty(self):
@@ -35,10 +38,11 @@ class TestBitstring:
         assert b.value == 1
         assert b.mask == 1
 
-        b = bitstring(1L, 1)
-        assert b.width == 1
-        assert b.value == 1
-        assert b.mask == 1
+        if PY2:
+            b = bitstring(long(1), 1)
+            assert b.width == 1
+            assert b.value == 1
+            assert b.mask == 1
 
     def test_init_int2(self):
         b = bitstring(1, 32)
@@ -46,10 +50,11 @@ class TestBitstring:
         assert b.value == 1
         assert b.mask == 0xffffffff
 
-        b = bitstring(1L, 32)
-        assert b.width == 32
-        assert b.value == 1
-        assert b.mask == 0xffffffff
+        if PY2:
+            b = bitstring(long(1), 32)
+            assert b.width == 32
+            assert b.value == 1
+            assert b.mask == 0xffffffff
 
     def test_init_int_default_width(self):
         b = bitstring(1)
@@ -62,10 +67,11 @@ class TestBitstring:
         assert b.value == 1 << 48
         assert b.mask == (1<<64) - 1
 
-        b = bitstring(1L)
-        assert b.width == 32
-        assert b.value == 1
-        assert b.mask == 0xffffffff
+        if PY2:
+            b = bitstring(long(1))
+            assert b.width == 32
+            assert b.value == 1
+            assert b.mask == 0xffffffff
 
     def test_init_int_masked(self):
         b = bitstring(65535, 8)

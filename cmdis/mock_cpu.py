@@ -25,7 +25,7 @@ MemBuffer = namedtuple('MemBuffer', 'start end data')
 class MockCpuModelDelegate(CpuModelDelegate):
     def __init__(self):
         self._mem = []
-        self._regs = {reg:0 for reg in CORE_REGISTER.itervalues()}
+        self._regs = {reg:0 for reg in CORE_REGISTER.values()}
 
         # set T bit in xpsr
         self._regs[16] = 0x01000000
