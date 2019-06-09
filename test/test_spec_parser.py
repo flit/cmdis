@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..decoder import parse_spec
-from ..bitstring import bitstring
+from cmdis.decoder import parse_spec
+from cmdis.bitstring import bitstring
 
 class TestParser:
     def test_a(self):

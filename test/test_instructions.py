@@ -15,13 +15,13 @@
 # limitations under the License.
 
 from __future__ import print_function
-from ..bitstring import *
-from ..disasm import decoder
-from ..model import CpuModel
-from ..mock_cpu import MockCpuModelDelegate
-from ..utilities import (le16_to_bytes, le32_to_bytes)
-from ..formatter import Formatter
-from ..registers import CORE_REGISTER
+from cmdis.bitstring import *
+from cmdis.disasm import decoder
+from cmdis.model import CpuModel
+from cmdis.mock_cpu import MockCpuModelDelegate
+from cmdis.utilities import (le16_to_bytes, le32_to_bytes)
+from cmdis.formatter import Formatter
+from cmdis.registers import CORE_REGISTER
 import pytest
 import string
 import six

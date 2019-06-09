@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..bitstring import *
-from ..helpers import *
+from cmdis.bitstring import *
+from cmdis.helpers import *
 
 class TestAlign:
     def test_0(self):
