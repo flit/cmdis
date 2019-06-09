@@ -15,11 +15,12 @@
 # limitations under the License.
 
 from __future__ import print_function
+import string
+from collections import (defaultdict, namedtuple)
+
 from .bitstring import bitstring
 from .utilities import (bytes_to_le16, hamming_weight)
 from .formatter import Formatter
-import string
-from collections import (defaultdict, namedtuple)
 
 ##
 # @brief Base class for a decoded instruction.

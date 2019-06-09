@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import namedtuple
+
 from .model import CpuModelDelegate
 from .registers import CORE_REGISTER
 from .utilities import (bytes_to_le16, bytes_to_le32, le16_to_bytes, le32_to_bytes)
-from collections import namedtuple
 
 MemBuffer = namedtuple('MemBuffer', 'start end data')
 

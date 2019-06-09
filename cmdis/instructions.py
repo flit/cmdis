@@ -14,6 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import namedtuple
+from enum import Enum
+import operator
+
 from .decoder import (Instruction, instr, DecodeError, UnpredictableError)
 from .bitstring import (bitstring, bit0, bit1)
 from .formatter import (RegisterOperand, ImmediateOperand, LabelOperand,
@@ -21,9 +25,6 @@ from .formatter import (RegisterOperand, ImmediateOperand, LabelOperand,
                         ReglistOperand, CpsOperand, SpecialRegisterOperand)
 from .helpers import *
 from .registers import CORE_REGISTER
-from collections import namedtuple
-from enum import Enum
-import operator
 
 class SetFlags(Enum):
     Always = 1

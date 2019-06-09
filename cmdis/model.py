@@ -15,12 +15,13 @@
 # limitations under the License.
 
 from __future__ import print_function
-from .registers import register_name_to_index
-from .utilities import (bfi, bfx)
-from .bitstring import bitstring
 from enum import Enum
 import six
 import logging
+
+from .registers import register_name_to_index
+from .utilities import (bfi, bfx)
+from .bitstring import bitstring
 
 class RegistersInterface(object):
     def __init__(self, cpu, first, last):

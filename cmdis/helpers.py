@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
+
 from .utilities import wmask
 from .bitstring import (bitstring, bit0, bit1, zeros)
-from enum import Enum
 
 class SRType(Enum):
     SRType_None = 0
